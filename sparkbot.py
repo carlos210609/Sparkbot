@@ -77,10 +77,10 @@ def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
             text = raw.decode(charset, errors="replace")
             if "html" in (response.headers.get("Content-Type") or "").lower():
                 import re
-                text = re.sub(r"<script\\b[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
-                text = re.sub(r"<style\\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+                text = re.sub(r"<script\b[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
+                text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
                 text = re.sub(r"<[^>]+>", " ", text)
-                text = re.sub(r"\\s+", " ", text).strip()
+                text = re.sub(r"\s+", " ", text).strip()
             return {"ok": True, "url": response.geturl(), "content_type": response.headers.get("Content-Type", ""), "text": text[:max(1000, min(int(max_chars), 12000))]}
     except (OSError, ValueError, urllib.error.URLError) as exc:
         return {"ok": False, "error": f"Web fetch failed: {type(exc).__name__}: {exc}"}
