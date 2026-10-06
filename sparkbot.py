@@ -32,6 +32,7 @@ def chat(messages):
     clean=[{"role":"system","content":SYSTEM}]+[m for m in messages if isinstance(m,dict) and m.get("role") in {"user","assistant","system"}]
     user=next((m.get("content","") for m in reversed(clean) if m.get("role")=="user"),"")
     plan=orchestrator.plan(user) if user else {"skills":[],"count":0}
+    agent_result=agent.run_command(user) if user else {}
     events=[]
     if user:
         events.append({"type":"thinking","text":"Entendi a missão e estou selecionando as capacidades mais relevantes."})
@@ -44,8 +45,9 @@ def chat(messages):
             events.append({"type":"execution","skill_id":skill["id"],"skill":skill["name"],"status":r.status,"verified":r.verified})
         events.append({"type":"verification","text":"As etapas internas foram verificadas em DRY_RUN; nenhuma ação externa foi inventada."})
     else: results=[]
-    response=ai.chat(clean)
-    return {"reply":response.content,"provider":response.provider,"model":response.model,"latency_ms":response.latency_ms,"ai_fallback":response.fallback,"plan":plan,"results":results,"events":events}
+    context_message={"role":"system","content":"Execution context: "+json.dumps({"plan":plan,"agent_result":agent_result,"results":results},ensure_ascii=False)}
+    response=ai.chat(clean+[context_message])
+    return {"reply":response.content,"provider":response.provider,"model":response.model,"latency_ms":response.latency_ms,"ai_fallback":response.fallback,"plan":plan,"agent_result":agent_result,"results":results,"events":events}
 
 class H(BaseHTTPRequestHandler):
     def send(self,data,code=200,ctype="application/json"):
