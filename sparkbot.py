@@ -384,7 +384,7 @@ class H(BaseHTTPRequestHandler):
             return self.send(ai.status())
 
         if path == "/api/runtime":
-            return self.send(runtime_manifest(browser_available=False))
+            return self.send(runtime_manifest(browser_available=browser.status()["installed"]))
 
         if path == "/api/skills":
             skills = cognitive.registry.all()
@@ -420,6 +420,23 @@ class H(BaseHTTPRequestHandler):
 
         if path == "/api/browser/status":
             return self.send(browser.status())
+
+        if path == "/api/social":
+            return self.send({"platforms": social_catalog()})
+
+        if path == "/api/approvals":
+            rows = fetch_all("SELECT * FROM memories WHERE kind='approval' ORDER BY id DESC LIMIT 100")
+            for row in rows:
+                try: row["value"] = json.loads(row["value"])
+                except Exception: pass
+            return self.send({"approvals": rows})
+
+        if path == "/api/learning":
+            rows = fetch_all("SELECT * FROM memories WHERE kind='learning' ORDER BY id DESC LIMIT 200")
+            for row in rows:
+                try: row["value"] = json.loads(row["value"])
+                except Exception: pass
+            return self.send({"events": rows})
 
         if path == "/api/browser/start":
             return self.send(browser.start())
@@ -531,6 +548,46 @@ class H(BaseHTTPRequestHandler):
 
         if path == "/api/browser/screenshot":
             return self.send(browser.screenshot())
+
+        if path == "/api/browser/elements":
+            return self.send(browser.elements(int(data.get("limit", 80))))
+
+        if path == "/api/browser/upload":
+            return self.send(browser.upload(str(data.get("path", ""))))
+
+        if path == "/api/social/open":
+            return self.send(social.open(str(data.get("platform","")), str(data.get("purpose","home"))))
+
+        if path == "/api/social/prepare-post":
+            return self.send(social.prepare_post(str(data.get("platform","")), str(data.get("caption","")), str(data.get("media_path",""))))
+
+        if path == "/api/approvals/approve":
+            approval_id = str(data.get("id",""))
+            row = fetch_one("SELECT * FROM memories WHERE kind='approval' AND key=?", (approval_id,))
+            if not row: return self.send({"error":"approval not found"},404)
+            approval = json.loads(row["value"])
+            if approval.get("status") != "PENDING": return self.send({"approval":approval})
+            action, args = approval.get("action"), approval.get("args") or {}
+            if action == "social_publish":
+                result = social.execute_post(args.get("platform",""), args.get("caption",""), args.get("media_path",""), publish=True)
+            elif action == "browser_click":
+                result = browser.click(args.get("selector",""), confirmed=True)
+            else:
+                result = {"ok":False,"error":"unsupported approval action"}
+            approval["status"] = "EXECUTED" if result.get("ok") else "FAILED"
+            execute("UPDATE memories SET value=?,updated_at=CURRENT_TIMESTAMP WHERE kind='approval' AND key=?",
+                    (json.dumps(approval,ensure_ascii=False),approval_id))
+            _learn("approval",action,result)
+            return self.send({"approval":approval,"result":result})
+
+        if path == "/api/approvals/reject":
+            approval_id = str(data.get("id",""))
+            row = fetch_one("SELECT * FROM memories WHERE kind='approval' AND key=?", (approval_id,))
+            if not row: return self.send({"error":"approval not found"},404)
+            approval=json.loads(row["value"]); approval["status"]="REJECTED"
+            execute("UPDATE memories SET value=?,updated_at=CURRENT_TIMESTAMP WHERE kind='approval' AND key=?",
+                    (json.dumps(approval,ensure_ascii=False),approval_id))
+            return self.send({"approval":approval})
 
         if path == "/api/browser/events":
             action = data.get("action")
