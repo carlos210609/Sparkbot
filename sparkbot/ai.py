@@ -163,7 +163,7 @@ class AIClient:
         messages: list[dict[str, Any]],
         *,
         temperature: float = 0.2,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Any | None = None,
         max_tool_rounds: int = 4,
