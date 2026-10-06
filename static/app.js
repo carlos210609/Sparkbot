@@ -79,8 +79,11 @@ async function loadSkills(){
 }
 let skillTimer; $("skillSearch").addEventListener("input",()=>{clearTimeout(skillTimer);skillTimer=setTimeout(loadSkills,220);});
 
+async function browserStatus(){ try{const d=await (await fetch("/api/browser/status")).json(); const badge=$("browserStatus"); const btn=$("browserStart"); if(badge) badge.textContent=d.started?"RUNNING":(d.installed?"READY":"PLAYWRIGHT REQUIRED"); if(btn) btn.textContent=d.started?"Parar browser":"Iniciar browser"; return d;}catch(e){return null;} }
+$("browserStart")?.addEventListener("click",async()=>{const d=await browserStatus(); const url=d?.started?"/api/browser/stop":"/api/browser/start"; await fetch(url); await browserStatus(); loadBrowser();});
+
 async function loadBrowser(){
- const d=await (await fetch("/api/browser")).json(),events=d.events||[];
+ const d=await (await fetch("/api/browser")).json(),events=d.events||[]; browserStatus();
  $("browserTotal").textContent=d.count||events.length;$("browserCount").textContent=d.count||events.length;
  $("browserLastUrl").textContent=events[0]?.url||"—";$("browserLastAction").textContent=events[0]?.action||"—";
  $("browserTable").innerHTML=events.length?'<div class="table-head"><span>TIME</span><span>ACTION</span><span>URL / TARGET</span><span>STATUS</span></div>'+events.map(e=>'<div class="table-row"><span>'+esc(e.created_at||"")+'</span><b>'+esc(e.action)+'</b><span>'+esc(e.url||e.target||"—")+'</span><em class="status '+esc(e.status)+'">'+esc(e.status)+'</em></div>').join(""):'<div class="empty">Nenhum evento de browser registrado ainda.</div>';
