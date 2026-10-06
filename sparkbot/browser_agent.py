@@ -156,7 +156,16 @@ class BrowserAgent:
         def op():
             try:
                 page = self._page_or_start()
-                page.locator(selector).first.click(timeout=15000)
+                locator = page.locator(selector).first
+                label = ((locator.inner_text(timeout=3000) or "") + " " +
+                         (locator.get_attribute("aria-label") or "")).strip()
+                sensitive = ("publish", "publicar", "postar", "post", "share", "compartilhar",
+                             "send", "enviar", "delete", "excluir", "follow", "seguir",
+                             "comment", "comentar")
+                if not confirmed and any(word in label.lower() for word in sensitive):
+                    return {"ok": False, "approval_required": True, "selector": selector,
+                            "label": label[:300], "error": "external side effect requires approval"}
+                locator.click(timeout=15000)
                 result = {"ok": True, "url": page.url, "selector": selector}
                 self.monitor.record("click", url=page.url, target=selector, status="success", details=result)
                 return result
@@ -172,7 +181,19 @@ class BrowserAgent:
         def op():
             try:
                 page = self._page_or_start()
-                page.locator(selector).first.fill(value)
+                locator = page.locator(selector).first
+                field_type = (locator.get_attribute("type") or "").lower()
+                field_name = " ".join(filter(None, [
+                    locator.get_attribute("name"),
+                    locator.get_attribute("id"),
+                    locator.get_attribute("placeholder"),
+                    locator.get_attribute("aria-label"),
+                ])).lower()
+                if field_type == "password" or any(word in field_name for word in
+                    ("password", "senha", "otp", "verification code", "código de verificação", "recovery code")):
+                    return {"ok": False, "manual_required": True,
+                            "error": "Sensitive authentication fields must be completed manually by the user."}
+                locator.fill(value)
                 result = {"ok": True, "url": page.url, "selector": selector, "value_length": len(value)}
                 self.monitor.record("fill", url=page.url, target=selector, status="success", details=result)
                 return result
