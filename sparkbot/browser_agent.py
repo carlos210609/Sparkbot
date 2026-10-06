@@ -62,14 +62,10 @@ class BrowserAgent:
             from playwright.sync_api import sync_playwright
             self.profile_dir.mkdir(parents=True, exist_ok=True)
             self._playwright = sync_playwright().start()
-            launch_args = {"headless": os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0", "viewport": {"width": 1440, "height": 900"}}
+            launch_args = {"headless": os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0", "viewport": {"width": 1440, "height": 900}}
             executable = _system_browser_executable()
             if executable: launch_args["executable_path"] = executable
             self._context = self._playwright.chromium.launch_persistent_context(str(self.profile_dir), **launch_args)
-                str(self.profile_dir),
-                headless=os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0",
-                viewport={"width": 1440, "height": 900},
-            )
             self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
             self._started = True
             self._error = ""
