@@ -106,7 +106,7 @@ class AIClient:
                 content=str(content),
                 latency_ms=(time.perf_counter() - start) * 1000,
             )
-        except (OSError, ValueError, KeyError, IndexError, urllib.error.URLError) as exc:
+        except (OSError, ValueError, KeyError, IndexError, RuntimeError, urllib.error.URLError) as exc:
             return AIResponse(
                 provider=self.provider,
                 model=model,
