@@ -20,6 +20,7 @@ from sparkbot.db import fetch_all, init_db
 from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
 from sparkbot.runtime import manifest as runtime_manifest
+from sparkbot.policy import validate_request
 from sparkbot.browser_monitor import BrowserMonitor
 from sparkbot.browser_agent import BrowserAgent
 
@@ -195,6 +196,10 @@ def chat(messages: list[dict]) -> dict:
             "events": [],
             "kernel": kernel.inspect(""),
         }
+
+    allowed, policy_reason = validate_request(user)
+    if not allowed:
+        return {"reply": policy_reason, "provider": ai.provider, "model": ai.model, "latency_ms": 0, "ai_fallback": False, "mission": None, "events": [{"type": "policy", "message": policy_reason}], "kernel": kernel.inspect(user)}
 
     mission = cognitive.run(user, mode="DRY_RUN")
     compact = {
