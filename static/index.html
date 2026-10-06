@@ -1,6 +1,15 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SparkBot Command Center</title><link rel="stylesheet" href="/static/styles.css"></head>
-<body><main class="shell"><header class="topbar"><div><div class="eyebrow">SPARKBOT</div><h1>Growth Command Center</h1><p>Plan, execute, verify and learn — with explicit boundaries around external actions.</p></div><div class="status-stack"><div id="health" class="status">Checking…</div><div id="aiStatus" class="status">AI: checking…</div></div></header>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SparkBot Command Center</title><link rel="stylesheet" href="/static/styles.css"></head>
+<body><main class="shell">
+<header class="topbar"><div><div class="eyebrow">SPARKBOT</div><h1>Growth Command Center</h1><p>Plan, execute, verify and learn — with explicit boundaries around external actions.</p></div><div class="status-stack"><div id="health" class="status">Checking…</div><div id="aiStatus" class="status">AI: checking…</div></div></header>
 <section class="command-card"><label for="command">Mission</label><textarea id="command" rows="3" placeholder="Ex.: Quero aumentar os leads do meu SaaS."></textarea><div class="actions"><button id="run">Create growth plan</button><span id="message"></span></div></section>
+<section class="grid">
+<article class="panel"><div class="label">AI provider</div><div id="aiProvider" class="metric small">—</div><div id="aiModel" class="meta">—</div></article>
+<article class="panel"><div class="label">Browser events</div><div id="browserCount" class="metric small">—</div><div class="meta">audited actions</div></article>
+<article class="panel"><div class="label">AI mode</div><div id="aiMode" class="metric small">—</div><div class="meta">provider readiness</div></article>
+</section>
 <section class="grid"><article class="panel"><div class="label">Active goals</div><div id="goalCount" class="metric">—</div></article><article class="panel"><div class="label">Open tasks</div><div id="taskCount" class="metric">—</div></article><article class="panel"><div class="label">P0/P1</div><div id="priorityCount" class="metric">—</div></article></section>
-<section class="two-col"><article class="panel"><div class="panel-head"><h2>Priority queue</h2><button id="refresh">Refresh</button></div><div id="tasks" class="list"></div></article><article class="panel"><div class="panel-head"><h2>Activity</h2></div><div id="activity" class="list"></div></article></section><section class="panel browser-panel"><div class="panel-head"><h2>Browser monitor</h2><span class="meta">live audit trail</span></div><div id="browserEvents" class="list"></div></section></section></main><script src="/static/app.js"></script></body></html>
+<section class="two-col"><article class="panel"><div class="panel-head"><h2>Priority queue</h2><button id="refresh">Refresh</button></div><div id="tasks" class="list"></div></article><article class="panel"><div class="panel-head"><h2>Activity</h2></div><div id="activity" class="list"></div></article></section>
+<section class="panel browser-panel"><div class="panel-head"><h2>Browser monitor</h2><span class="meta">live audit trail</span></div><div id="browserEvents" class="list"></div></section>
+</main><script src="/static/app.js"></script></body></html>
