@@ -51,3 +51,34 @@ The model is instructed to reason as an agent, but the runtime remains authorita
     ruff check .
 
 If GitHub Actions is enabled for the repository, the same checks run on push and pull request.
+
+
+## Social operations and real browser
+
+SparkBot can now use the persistent Chromium profile to work with legitimate, user-authorized accounts on Instagram, TikTok, YouTube, LinkedIn, Facebook, X, Threads, Pinterest, Reddit, Canva and supported AI-video sites. The runtime can open signup/login pages, inspect interactive elements, prepare drafts, upload media and stage publications.
+
+Account onboarding is intentionally human-safe: passwords, OTP/MFA, recovery codes, CAPTCHA and other security challenges are never automated or stored by SparkBot. The user completes those steps in the persistent browser profile. This matches the platforms' own account flows; for example, Canva sends an email verification code during signup, YouTube requires a Google account/channel for public uploads, and LinkedIn requires the user's real identity. 
+
+Public publishing, messages and other externally visible side effects go through the Approval Center. The browser also detects sensitive fields and publish-like controls and refuses to silently execute them.
+
+### Supported operations
+
+- official signup/login page navigation
+- profile setup assistance
+- content research and copy generation
+- draft preparation
+- image/video upload
+- publish staging and human approval
+- comments/replies/messages when the platform UI permits it
+- analytics inspection
+- Canva and AI-video site onboarding/workflows
+- persistent browser session
+- operational learning from verified outcomes
+
+SparkBot's learning layer is outcome-based: it records successful/verified browser and social operations in persistent memory and uses those observations to improve future strategy selection. It does not retrain NVIDIA model weights automatically.
+
+Install the browser runtime:
+
+    python3 -m pip install -e ".[browser]"
+    python3 -m playwright install chromium
+    python3 sparkbot.py
