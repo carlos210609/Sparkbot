@@ -144,6 +144,12 @@ def execute_tool(name: str, args: dict) -> dict:
 
 
 
+kernel.tools.register("web_search", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("web_fetch", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("browser_navigate", execute_tool, risk="medium", permissions=("READ",))
+kernel.tools.register("browser_click", execute_tool, risk="medium", permissions=("WRITE",))
+kernel.tools.register("browser_fill", execute_tool, risk="high", permissions=("WRITE",))
+
 def run_background(request, emit, mission_id=None):
     emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
     result = cognitive.run(request, mode="DRY_RUN", mission_id=mission_id)
@@ -249,7 +255,9 @@ def chat(messages: list[dict]) -> dict:
     context_message = {
         "role": "system",
         "content": "Live mission state (do not invent beyond it): "
-        + json.dumps(compact, ensure_ascii=False),
+        + json.dumps(compact, ensure_ascii=False)
+        + "\\n\\nKernel memory/context: "
+        + json.dumps(kernel.inspect(user), ensure_ascii=False),
     }
     response = ai.chat(clean + [context_message], tools=[WEB_TOOL, *BROWSER_TOOLS], tool_executor=execute_tool)
     return {
