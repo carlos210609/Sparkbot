@@ -131,19 +131,19 @@ class AIClient:
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float = 0.2,
         max_tokens: int = 1024,
+        tools: list[dict[str, Any]] | None = None,
+        tool_executor: Any | None = None,
+        max_tool_rounds: int = 4,
     ) -> AIResponse:
         import time
 
         start = time.perf_counter()
         model = self.select_model()
         models_to_try = [model]
-
-        # Auto mode can recover from NVIDIA model retirement without hiding
-        # authentication/billing/validation failures.
         if self.provider == "nvidia" and os.getenv(
             "SPARKBOT_NVIDIA_MODEL", self.model
         ) == "auto":
@@ -153,7 +153,13 @@ class AIClient:
         for candidate in models_to_try:
             try:
                 content = self._chat_once(
-                    candidate, messages, temperature, max_tokens
+                    candidate,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    tools=tools,
+                    tool_executor=tool_executor,
+                    max_tool_rounds=max_tool_rounds,
                 )
                 return AIResponse(
                     provider=self.provider,
@@ -163,8 +169,6 @@ class AIClient:
                 )
             except urllib.error.HTTPError as exc:
                 last_error = exc
-                # A retired/missing model is recoverable. Do not retry 401,
-                # 403, 402 or validation/server errors.
                 if self.provider != "nvidia" or exc.code != 404:
                     break
             except (
