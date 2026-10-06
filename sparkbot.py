@@ -22,7 +22,6 @@ from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
 from sparkbot.runtime import manifest as runtime_manifest
 from sparkbot.policy import validate_request
-from sparkbot.browser_monitor import BrowserMonitor
 from sparkbot.browser_agent import BrowserAgent
 
 ROOT = Path(__file__).resolve().parent
