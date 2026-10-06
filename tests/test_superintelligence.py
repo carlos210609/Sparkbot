@@ -20,6 +20,8 @@ def test_cognitive_engine_can_plan_and_verify_in_dry_run(tmp_path, monkeypatch):
     db_file = tmp_path / "sparkbot.db"
     monkeypatch.setenv("SPARKBOT_DB_PATH", str(db_file))
     # DB path is resolved at import time, so this test focuses on the pure mission contract.
+    from sparkbot.db import init_db
+    init_db()
     from sparkbot.cognitive import CognitiveEngine
     result = CognitiveEngine().run("crie uma estratégia de crescimento", mode="DRY_RUN")
     assert result["mission_id"]
