@@ -20,7 +20,7 @@ from .browser_monitor import BrowserMonitor
 def _system_browser_executable():
     configured = os.getenv('SPARKBOT_BROWSER_EXECUTABLE', '').strip()
     candidates = [configured] if configured else []
-    candidates += ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser']
+    candidates += ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser','/usr/bin/microsoft-edge','/usr/bin/microsoft-edge-stable']
     for item in candidates:
         if item and Path(item).is_file(): return item
     return None
@@ -61,10 +61,12 @@ class BrowserAgent:
         try:
             from playwright.sync_api import sync_playwright
             self.profile_dir.mkdir(parents=True, exist_ok=True)
+            executable = _system_browser_executable()
+            if not executable:
+                raise RuntimeError("No supported system browser found. Install or expose Chrome, Chromium or Edge; SparkBot will not download a browser automatically.")
             self._playwright = sync_playwright().start()
             launch_args = {"headless": os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0", "viewport": {"width": 1440, "height": 900}}
-            executable = _system_browser_executable()
-            if executable: launch_args["executable_path"] = executable
+            launch_args["executable_path"] = executable
             self._context = self._playwright.chromium.launch_persistent_context(str(self.profile_dir), **launch_args)
             self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
             self._started = True
@@ -105,7 +107,7 @@ class BrowserAgent:
             state = self._call(self._status_state)
         state["installed"] = installed
         state["system_browser"] = _system_browser_executable()
-        state["browser_mode"] = "system-browser" if state["system_browser"] else "playwright-managed"
+        state["browser_mode"] = "system-browser" if state["system_browser"] else "unavailable"
         return state
 
     def start(self) -> dict[str, Any]:
