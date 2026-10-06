@@ -27,7 +27,7 @@ from sparkbot.browser_agent import BrowserAgent
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 PORT = int(os.getenv("SPARKBOT_PORT", "8000"))
-HOST = os.getenv("SPARKBOT_HOST", "0.0.0.0")
+HOST = os.getenv("SPARKBOT_HOST", "127.0.0.1")
 
 ai = AIClient()
 legacy_agent = SparkAgent()
