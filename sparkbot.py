@@ -355,8 +355,7 @@ class H(BaseHTTPRequestHandler):
             })
 
         if path == "/api/missions":
-            ids = list(mission_store._missions.keys())[-50:]
-            return self.send({"missions": [mission_store.get(mid) for mid in ids]})
+            return self.send({"missions": mission_store.all(50)})
 
         if path.startswith("/api/missions/") and path.endswith("/events"):
             mission_id = path.split("/")[-2]
