@@ -433,6 +433,21 @@ class H(BaseHTTPRequestHandler):
                 cognitive.run(request, mode=str(data.get("mode", "DRY_RUN")))
             )
 
+        if path == "/api/browser/navigate":
+            return self.send(browser.navigate(str(data.get("url", ""))))
+
+        if path == "/api/browser/click":
+            return self.send(browser.click(str(data.get("selector", ""))))
+
+        if path == "/api/browser/fill":
+            return self.send(browser.fill(str(data.get("selector", "")), str(data.get("value", ""))))
+
+        if path == "/api/browser/text":
+            return self.send(browser.text(int(data.get("max_chars", 12000))))
+
+        if path == "/api/browser/screenshot":
+            return self.send(browser.screenshot())
+
         if path == "/api/browser/events":
             action = data.get("action")
             if not isinstance(action, str) or not action.strip():
