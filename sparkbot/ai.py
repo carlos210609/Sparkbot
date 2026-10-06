@@ -179,37 +179,71 @@ class AIClient:
             models_to_try = list(dict.fromkeys(self.DEFAULT_MODEL_PREFERENCES))
 
         last_error: BaseException | None = None
+        transient_statuses = {408, 425, 429, 500, 502, 503, 504}
         for candidate in models_to_try:
+            attempts = 2
+            for attempt in range(attempts):
+                try:
+                    content = self._chat_once(
+                        candidate,
+                        messages,
+                        temperature,
+                        max_tokens,
+                        tools=tools,
+                        tool_executor=tool_executor,
+                        max_tool_rounds=max_tool_rounds,
+                    )
+                    if content.strip():
+                        return AIResponse(
+                            provider=self.provider,
+                            model=candidate,
+                            content=content,
+                            latency_ms=(time.perf_counter() - start) * 1000,
+                        )
+                    raise RuntimeError("AI returned an empty response")
+                except urllib.error.HTTPError as exc:
+                    last_error = exc
+                    if self.provider == "nvidia" and exc.code == 404:
+                        break
+                    if exc.code in transient_statuses and attempt + 1 < attempts:
+                        continue
+                    break
+                except (
+                    OSError,
+                    ValueError,
+                    KeyError,
+                    IndexError,
+                    RuntimeError,
+                    urllib.error.URLError,
+                ) as exc:
+                    last_error = exc
+                    if attempt + 1 < attempts:
+                        continue
+                    break
+            if self.provider != "nvidia" or self._http_error_status(last_error or RuntimeError()) != 404:
+                break
+
+        if tools and tool_executor and last_error is not None:
             try:
                 content = self._chat_once(
-                    candidate,
+                    model,
                     messages,
                     temperature,
                     max_tokens,
-                    tools=tools,
-                    tool_executor=tool_executor,
-                    max_tool_rounds=max_tool_rounds,
+                    tools=None,
+                    tool_executor=None,
+                    max_tool_rounds=0,
                 )
-                return AIResponse(
-                    provider=self.provider,
-                    model=candidate,
-                    content=content,
-                    latency_ms=(time.perf_counter() - start) * 1000,
-                )
-            except urllib.error.HTTPError as exc:
+                if content.strip():
+                    return AIResponse(
+                        provider=self.provider,
+                        model=model,
+                        content=content,
+                        latency_ms=(time.perf_counter() - start) * 1000,
+                        fallback=True,
+                    )
+            except Exception as exc:
                 last_error = exc
-                if self.provider != "nvidia" or exc.code != 404:
-                    break
-            except (
-                OSError,
-                ValueError,
-                KeyError,
-                IndexError,
-                RuntimeError,
-                urllib.error.URLError,
-            ) as exc:
-                last_error = exc
-                break
 
         exc = last_error or RuntimeError("unknown AI error")
         status = self._http_error_status(exc)
