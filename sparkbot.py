@@ -6,6 +6,11 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import ipaddress
+import socket
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from sparkbot.ai import AIClient
 from sparkbot.agent import SparkAgent
@@ -29,6 +34,63 @@ kernel = SparkKernel()
 mesh = AgentMesh()
 mission_store = MissionStore()
 init_db()
+
+
+WEB_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "web_fetch",
+        "description": "Fetch a public HTTP/HTTPS web page for research or verification. Use this when current public internet information is needed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Public http or https URL to retrieve."},
+                "max_chars": {"type": "integer", "minimum": 1000, "maximum": 12000, "description": "Maximum text returned."},
+            },
+            "required": ["url"],
+        },
+    },
+}
+
+
+def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return {"ok": False, "error": "Only public HTTP/HTTPS URLs are allowed."}
+    host = parsed.hostname
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, None)}
+        for address in addresses:
+            ip = ipaddress.ip_address(address)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return {"ok": False, "error": "Private or local network targets are blocked."}
+    except OSError as exc:
+        return {"ok": False, "error": f"DNS resolution failed: {exc}"}
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "SparkBot/1.0 (public-web-research)", "Accept": "text/html,text/plain,application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            raw = response.read(1_000_000)
+            charset = response.headers.get_content_charset() or "utf-8"
+            text = raw.decode(charset, errors="replace")
+            if "html" in (response.headers.get("Content-Type") or "").lower():
+                import re
+                text = re.sub(r"<script\\b[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
+                text = re.sub(r"<style\\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = re.sub(r"\\s+", " ", text).strip()
+            return {"ok": True, "url": response.geturl(), "content_type": response.headers.get("Content-Type", ""), "text": text[:max(1000, min(int(max_chars), 12000))]}
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return {"ok": False, "error": f"Web fetch failed: {type(exc).__name__}: {exc}"}
+
+
+def execute_tool(name: str, args: dict) -> dict:
+    if name == "web_fetch":
+        return _public_web_fetch(str(args.get("url", "")), int(args.get("max_chars", 8000)))
+    return {"ok": False, "error": f"Unknown tool: {name}"}
+
 
 
 def run_background(request, emit):
@@ -92,7 +154,7 @@ def chat(messages: list[dict]) -> dict:
     )
 
     if not user:
-        response = ai.chat(clean)
+        response = ai.chat(clean, tools=[WEB_TOOL], tool_executor=execute_tool)
         return {
             "reply": response.content,
             "provider": response.provider,
@@ -134,7 +196,7 @@ def chat(messages: list[dict]) -> dict:
         "content": "Live mission state (do not invent beyond it): "
         + json.dumps(compact, ensure_ascii=False),
     }
-    response = ai.chat(clean + [context_message])
+    response = ai.chat(clean + [context_message], tools=[WEB_TOOL], tool_executor=execute_tool)
     return {
         "reply": response.content,
         "provider": response.provider,
