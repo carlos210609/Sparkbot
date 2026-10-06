@@ -293,6 +293,20 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
 
+        if path == "/api/diagnostics":
+            checks = {}
+            try:
+                checks["database"] = {"ok": bool(fetch_all("SELECT 1 AS ok"))}
+            except Exception as exc:
+                checks["database"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            checks["nvidia"] = {"ok": ai.status()["configured"], "provider": ai.provider, "model": ai.model}
+            checks["skills"] = {"ok": len(cognitive.registry.all()) == 1500, "count": len(cognitive.registry.all())}
+            checks["agents"] = {"ok": mesh.stats()["total"] == 700, **mesh.stats()}
+            checks["browser"] = browser.status()
+            checks["runtime_tools"] = kernel.inspect("")["available_tools"]
+            failed = [name for name, value in checks.items() if isinstance(value, dict) and value.get("ok") is False]
+            return self.send({"status": "FAILED" if failed else "READY", "failed": failed, "checks": checks})
+
         if path == "/health":
             return self.send({
                 "status": "ok",
