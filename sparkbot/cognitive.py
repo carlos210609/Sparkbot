@@ -39,7 +39,7 @@ class CognitiveEngine:
         for skill in skills:
             result=self.executor.execute(skill.id,ctx,{"request":request,"mission_id":mission_id})
             results.append({"execution_id":result.execution_id,"skill_id":result.skill_id,"status":result.status,"verified":result.verified,"output":result.output,"error":result.error,"duration_ms":result.duration_ms})
-            events.append({"type":"execution","skill_id":result.skill_id,"status":result.status,"verified":result.verified})
+            events.append({"type":"execution","message":result.status,"skill_id":result.skill_id,"status":result.status,"verified":result.verified})
             execute(
                 "INSERT INTO activity_logs(event_type,message,metadata) VALUES (?,?,?)",
                 ("SKILL_EXECUTION", f"{result.skill_id}: {result.status}", json.dumps({
