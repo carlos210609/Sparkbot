@@ -2,7 +2,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from typing import Any
-DB_PATH = Path(__import__("os").getenv("SPARKBOT_DB_PATH", "data/sparkbot.db"))
+def db_path() -> Path:\n return Path(__import__("os").getenv("SPARKBOT_DB_PATH", "data/sparkbot.db"))
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS goals (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
