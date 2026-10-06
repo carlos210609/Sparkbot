@@ -259,7 +259,7 @@ def chat(messages: list[dict]) -> dict:
         + "\\n\\nKernel memory/context: "
         + json.dumps(kernel.inspect(user), ensure_ascii=False),
     }
-    response = ai.chat(clean + [context_message], tools=[WEB_TOOL, *BROWSER_TOOLS], tool_executor=execute_tool)
+    response = ai.chat(clean + [context_message], tools=[*WEB_TOOLS, *BROWSER_TOOLS], tool_executor=execute_tool)
     return {
         "reply": response.content,
         "provider": response.provider,
