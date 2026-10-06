@@ -149,6 +149,8 @@ kernel.tools.register("web_fetch", execute_tool, risk="low", permissions=("READ"
 kernel.tools.register("browser_navigate", execute_tool, risk="medium", permissions=("READ",))
 kernel.tools.register("browser_click", execute_tool, risk="medium", permissions=("WRITE",))
 kernel.tools.register("browser_fill", execute_tool, risk="high", permissions=("WRITE",))
+kernel.tools.register("browser_text", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("browser_screenshot", execute_tool, risk="low", permissions=("READ",))
 
 def run_background(request, emit, mission_id=None):
     emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
