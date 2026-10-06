@@ -11,8 +11,10 @@ from .models import CommandRequest, GoalCreate, TaskCreate, TaskStatusUpdate, Sk
 from .orchestrator import Orchestrator
 from .engine import ExecutionContext
 from .skills.models import Permission
+from .workflows import WorkflowEngine
+from .policy import validate_request
 load_dotenv(); init_db()
-app=FastAPI(title="SparkBot",version="0.2.0"); agent=SparkAgent(); orchestrator=Orchestrator()
+app=FastAPI(title="SparkBot",version="0.2.0"); agent=SparkAgent(); orchestrator=Orchestrator(); workflows=WorkflowEngine(orchestrator.registry)
 static_dir=Path(__file__).resolve().parent.parent/"static"; app.mount("/static",StaticFiles(directory=static_dir),name="static")
 API_KEY=os.getenv("SPARKBOT_API_KEY",""); ALLOW_INSECURE_LOCAL=os.getenv("SPARKBOT_ALLOW_INSECURE_LOCAL","false").lower()=="true"
 def require_auth(authorization:str|None=Header(default=None))->str:
@@ -30,7 +32,16 @@ def snapshot(_:str=Depends(require_auth)):return agent.snapshot()
 @app.get("/api/skills")
 def skills(_:str=Depends(require_auth)):return {"count":len(orchestrator.registry.all()),"skills":[s.to_dict() for s in orchestrator.registry.all()]}
 @app.post("/api/skills/route")
-def route(payload:SkillRouteRequest,_:str=Depends(require_auth)):return orchestrator.plan(payload.request)
+def route(payload:SkillRouteRequest,_:str=Depends(require_auth)):
+ ok,reason=validate_request(payload.request)
+ if not ok: raise HTTPException(403,reason)
+ return orchestrator.plan(payload.request)
+@app.get("/api/workflows")
+def workflow_names(_:str=Depends(require_auth)): return {"workflows":sorted(__import__("sparkbot.workflows",fromlist=["WORKFLOWS"]).WORKFLOWS)}
+@app.get("/api/workflows/{name}")
+def workflow(name:str,_:str=Depends(require_auth)):
+ try:return workflows.compose(name)
+ except KeyError:raise HTTPException(404,"Workflow not found")
 @app.post("/api/skills/execute")
 def execute_skill(payload:SkillExecuteRequest,actor:str=Depends(require_auth)):
  try:perms={Permission(x) for x in payload.permissions}
@@ -41,6 +52,8 @@ def execute_skill(payload:SkillExecuteRequest,actor:str=Depends(require_auth)):
  return result.__dict__
 @app.post("/api/commands")
 def command(payload:CommandRequest,actor:str=Depends(require_auth)):
+ ok,reason=validate_request(payload.command)
+ if not ok: raise HTTPException(403,reason)
  result=agent.run_command(payload.command); result["skill_plan"]=orchestrator.plan(payload.command); execute("INSERT INTO audit_logs(action,actor,target,result) VALUES (?,?,?,?)",("command",actor,"agent","plan_created")); return result
 @app.post("/api/goals")
 def create_goal(payload:GoalCreate,actor:str=Depends(require_auth)):
