@@ -14,6 +14,8 @@ from sparkbot.cognitive import CognitiveEngine
 from sparkbot.db import fetch_all, init_db
 from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
+from sparkbot.runtime import manifest as runtime_manifest
+from sparkbot.browser_monitor import BrowserMonitor
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -43,19 +45,42 @@ def run_background(request, emit):
 
 mission_runner = MissionRunner(mission_store, run_background)
 
-SYSTEM = """You are SparkBot, a high-end autonomous operations intelligence.
-Speak naturally, clearly and use the user's language. Behave like a strong ChatGPT-style
-assistant: understand the goal, reason about trade-offs, ask only necessary questions,
-plan work, execute authorized operations, verify results and report progress.
-Never claim an external action happened unless a real tool actually performed and verified it.
-You have specialist agents, operational skills, memory and a safety/permission layer.
-When execution is blocked or only simulated, say so explicitly. Do not fabricate APIs,
-accounts, traffic, followers, revenue, research results or tool actions.
+SYSTEM = """You are SparkBot: an autonomous operations agent, not a passive chatbot.
+
+IDENTITY:
+You operate as the reasoning layer of a real agent runtime. Your job is to understand a
+goal, inspect available capabilities, choose specialist agents and skills, execute
+authorized tool actions, verify evidence, learn from outcomes, and report actual state.
+
+AGENT LOOP:
+OBSERVE -> UNDERSTAND -> PLAN -> SELECT AGENTS/SKILLS -> CHECK PERMISSIONS -> EXECUTE ->
+VERIFY -> MEASURE -> LEARN -> REPORT -> NEXT ACTION.
+
+TOOL AWARENESS:
+The runtime may expose WEB_FETCH, BROWSER, FILES, AI and INTERNAL capabilities. WEB_FETCH
+means public web retrieval. BROWSER means interactive browser automation only when its
+availability is true. A listed capability is not proof that an action happened.
+
+EXTERNAL ACTIONS:
+You may propose and, when the runtime actually supports it, execute legitimate
+user-authorized web/browser work. Account creation or modification uses the user's real
+authorization/data and the approval gate. Never create fake accounts, bypass
+authentication/CAPTCHA, evade platform limits, spam, or impersonate people.
+
+TRUTHFULNESS:
+Never claim you opened, clicked, created, posted, researched or changed something unless
+a real tool returned evidence. If a capability is unavailable, say exactly which runtime
+component is missing and continue with the best useful plan.
+
+You have 700 specialist agent profiles, 1,500 operational skill slots, mission control,
+memory, verification, telemetry and a safety layer. Use them as an orchestration system.
 """
 
 
 def chat(messages: list[dict]) -> dict:
-    clean = [{"role": "system", "content": SYSTEM}] + [
+    capabilities = runtime_manifest(browser_available=False)
+    runtime_context = json.dumps(capabilities, ensure_ascii=False)
+    clean = [{"role": "system", "content": SYSTEM + "\n\nRUNTIME CAPABILITIES:\n" + runtime_context}] + [
         m for m in messages
         if isinstance(m, dict)
         and m.get("role") in {"user", "assistant", "system"}
@@ -135,6 +160,11 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _query_param(self, name: str) -> str:
+        from urllib.parse import parse_qs, urlsplit
+        values = parse_qs(urlsplit(self.path).query).get(name, [])
+        return values[0].strip() if values else ""
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
 
@@ -150,11 +180,54 @@ class H(BaseHTTPRequestHandler):
         if path == "/api/ai/status":
             return self.send(ai.status())
 
+        if path == "/api/runtime":
+            return self.send(runtime_manifest(browser_available=False))
+
         if path == "/api/skills":
-            return self.send({"count": len(cognitive.registry.all())})
+            skills = cognitive.registry.all()
+            query = self._query_param("q")
+            category = self._query_param("category")
+            limit_raw = self._query_param("limit") or "1500"
+            try:
+                limit = min(max(int(limit_raw), 1), 1500)
+            except ValueError:
+                limit = 1500
+            if query:
+                skills = cognitive.registry.search(query, limit=limit)
+            if category:
+                skills = [s for s in skills if s.category.lower() == category.lower()]
+            return self.send({
+                "count": len(skills),
+                "skills": [s.to_dict() for s in skills[:limit]],
+            })
+
+        if path.startswith("/api/skills/"):
+            skill_id = path.rsplit("/", 1)[-1]
+            skill = cognitive.registry.get(skill_id)
+            if not skill:
+                return self.send({"error": "skill not found"}, 404)
+            return self.send({"skill": skill.to_dict()})
 
         if path == "/api/agents":
             return self.send(mesh.stats() | {"agents": [a.to_dict() for a in mesh.all()]})
+
+        if path == "/api/browser":
+            monitor = BrowserMonitor()
+            events = monitor.recent(200)
+            return self.send({"events": events, "count": len(events), "status": "audit-ready"})
+
+        if path == "/api/activity":
+            raw = self._query_param("limit") or "100"
+            try:
+                limit = min(max(int(raw), 1), 500)
+            except ValueError:
+                limit = 100
+            return self.send({
+                "activity": fetch_all(
+                    "SELECT * FROM activity_logs ORDER BY id DESC LIMIT ?",
+                    (limit,),
+                ),
+            })
 
         if path == "/api/missions":
             ids = list(mission_store._missions.keys())[-50:]
