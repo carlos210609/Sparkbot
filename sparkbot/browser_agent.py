@@ -17,6 +17,14 @@ from typing import Any, Callable
 from .browser_monitor import BrowserMonitor
 
 
+def _system_browser_executable():
+    configured = os.getenv('SPARKBOT_BROWSER_EXECUTABLE', '').strip()
+    candidates = [configured] if configured else []
+    candidates += ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser']
+    for item in candidates:
+        if item and Path(item).is_file(): return item
+    return None
+
 def _public_url(url: str) -> tuple[bool, str]:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
