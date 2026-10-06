@@ -43,8 +43,15 @@ class CognitiveEngine:
         verified=bool(results) and all(r["verified"] for r in results)
         status="COMPLETED" if verified else ("PLANNED" if not results else "PARTIAL")
         duration_ms=(time.perf_counter()-started)*1000
-        execute("INSERT INTO missions(id,request,goal,status,confidence,selected_agents,selected_skills) VALUES (?,?,?,?,?,?,?)",
-                (mission_id,request,"Autonomous mission",status,float(critique["confidence"]),len(agents),len(skills)))
+        execute(
+            "UPDATE missions SET request=?, goal=?, status=?, confidence=?, selected_agents=?, selected_skills=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (request, "Autonomous mission", status, float(critique["confidence"]), len(agents), len(skills), mission_id),
+        )
+        if not __import__("sparkbot.db", fromlist=["fetch_one"]).fetch_one("SELECT id FROM missions WHERE id=?", (mission_id,)):
+            execute(
+                "INSERT INTO missions(id,request,goal,status,confidence,selected_agents,selected_skills) VALUES (?,?,?,?,?,?,?)",
+                (mission_id, request, "Autonomous mission", status, float(critique["confidence"]), len(agents), len(skills)),
+            )
         for e in events:
             execute("INSERT INTO mission_events(mission_id,event_type,message,metadata) VALUES (?,?,?,?)",
                     (mission_id,e["type"],e["message"],json.dumps(e,ensure_ascii=False)))
