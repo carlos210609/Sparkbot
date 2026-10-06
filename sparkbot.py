@@ -17,12 +17,12 @@ from sparkbot.ai import AIClient
 from sparkbot.agent import SparkAgent
 from sparkbot.agent_mesh import AgentMesh
 from sparkbot.cognitive import CognitiveEngine
-from sparkbot.db import fetch_all, init_db
+from sparkbot.db import execute, fetch_all, fetch_one, init_db
 from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
 from sparkbot.runtime import manifest as runtime_manifest
 from sparkbot.policy import validate_request
-from sparkbot.browser_agent import BrowserAgent
+from sparkbot.browser_agent import BrowserAgent\nfrom sparkbot.social import SocialController, catalog as social_catalog
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -151,6 +151,12 @@ kernel.tools.register("browser_click", execute_tool, risk="medium", permissions=
 kernel.tools.register("browser_fill", execute_tool, risk="high", permissions=("WRITE",))
 kernel.tools.register("browser_text", execute_tool, risk="low", permissions=("READ",))
 kernel.tools.register("browser_screenshot", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("browser_elements", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("browser_upload", execute_tool, risk="medium", permissions=("WRITE",))
+kernel.tools.register("social_catalog", execute_tool, risk="low", permissions=("READ",))
+kernel.tools.register("social_open", execute_tool, risk="medium", permissions=("READ",))
+kernel.tools.register("social_prepare_post", execute_tool, risk="medium", permissions=("WRITE",))
+kernel.tools.register("social_publish", execute_tool, risk="critical", permissions=("PUBLISH",))
 
 def run_background(request, emit, mission_id=None):
     emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
