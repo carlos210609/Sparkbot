@@ -3,7 +3,7 @@ from __future__ import annotations
 import json, time, uuid
 from typing import Any
 from .agent_mesh import AgentMesh, AgentProfile
-from .db import execute
+from .db import execute, fetch_one
 from .engine import ExecutionContext, SkillExecutor, SkillRouter
 from .skills import SkillRegistry, Permission
 
@@ -47,7 +47,7 @@ class CognitiveEngine:
             "UPDATE missions SET request=?, goal=?, status=?, confidence=?, selected_agents=?, selected_skills=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (request, "Autonomous mission", status, float(critique["confidence"]), len(agents), len(skills), mission_id),
         )
-        if not __import__("sparkbot.db", fromlist=["fetch_one"]).fetch_one("SELECT id FROM missions WHERE id=?", (mission_id,)):
+        if not fetch_one("SELECT id FROM missions WHERE id=?", (mission_id,)):
             execute(
                 "INSERT INTO missions(id,request,goal,status,confidence,selected_agents,selected_skills) VALUES (?,?,?,?,?,?,?)",
                 (mission_id, request, "Autonomous mission", status, float(critique["confidence"]), len(agents), len(skills)),
