@@ -1,52 +1,32 @@
-"""Human approval queue for externally visible or high-risk actions."""
+"""Approval facade backed by SparkBot persistent memory."""
 from __future__ import annotations
-
-import json
-import uuid
-from .db import execute, fetch_all, fetch_one
+import json, uuid
+from .db import execute, fetch_all
 
 class ApprovalStore:
-    def create(self, action: str, args: dict, reason: str, actor: str = "sparkbot") -> str:
-        approval_id = uuid.uuid4().hex
-        execute(
-            """INSERT INTO approvals(id,action,args,reason,status,actor)
-               VALUES (?,?,?,?,?,?)""",
-            (approval_id, action, json.dumps(args, ensure_ascii=False), reason, "PENDING", actor),
-        )
-        return approval_id
-
-    def get(self, approval_id: str) -> dict | None:
-        row = fetch_one("SELECT * FROM approvals WHERE id=?", (approval_id,))
-        if not row:
-            return None
-        row["args"] = json.loads(row.get("args") or "{}")
-        return row
-
-    def list(self, status: str | None = "PENDING", limit: int = 100) -> list[dict]:
-        sql = "SELECT * FROM approvals"
-        params: tuple = ()
-        if status:
-            sql += " WHERE status=?"
-            params = (status.upper(),)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params += (max(1, min(limit, 500)),)
-        rows = fetch_all(sql, params)
+    def create(self, action, args, reason, actor="sparkbot"):
+        aid=uuid.uuid4().hex
+        value={"action":action,"args":args,"reason":reason,"status":"PENDING","actor":actor}
+        execute("INSERT INTO memories(kind,key,value,importance) VALUES (?,?,?,?)",
+                ("approval",aid,json.dumps(value,ensure_ascii=False),1.0))
+        return aid
+    def get(self, approval_id):
+        rows=fetch_all("SELECT * FROM memories WHERE kind='approval' AND key=? LIMIT 1",(approval_id,))
+        if not rows: return None
+        value=json.loads(rows[0]["value"]); return {"id":approval_id,**value}
+    def list(self,status="PENDING",limit=100):
+        rows=fetch_all("SELECT * FROM memories WHERE kind='approval' ORDER BY id DESC LIMIT ?",(max(1,min(limit,500)),))
+        out=[]
         for row in rows:
-            row["args"] = json.loads(row.get("args") or "{}")
-        return rows
-
-    def approve(self, approval_id: str) -> dict | None:
-        row = self.get(approval_id)
-        if not row or row["status"] != "PENDING":
-            return row
-        execute("UPDATE approvals SET status='APPROVED', approved_at=CURRENT_TIMESTAMP WHERE id=?",
-                (approval_id,))
+            value=json.loads(row["value"]); item={"id":row["key"],**value}
+            if not status or value.get("status")==status: out.append(item)
+        return out
+    def _set(self, approval_id, status):
+        item=self.get(approval_id)
+        if not item or item.get("status")!="PENDING": return item
+        item["status"]=status
+        execute("UPDATE memories SET value=?,updated_at=CURRENT_TIMESTAMP WHERE kind='approval' AND key=?",
+                (json.dumps({k:v for k,v in item.items() if k!="id"},ensure_ascii=False),approval_id))
         return self.get(approval_id)
-
-    def reject(self, approval_id: str) -> dict | None:
-        row = self.get(approval_id)
-        if not row or row["status"] != "PENDING":
-            return row
-        execute("UPDATE approvals SET status='REJECTED', approved_at=CURRENT_TIMESTAMP WHERE id=?",
-                (approval_id,))
-        return self.get(approval_id)
+    def approve(self, approval_id): return self._set(approval_id,"APPROVED")
+    def reject(self, approval_id): return self._set(approval_id,"REJECTED")
