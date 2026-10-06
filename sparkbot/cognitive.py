@@ -40,6 +40,14 @@ class CognitiveEngine:
             result=self.executor.execute(skill.id,ctx,{"request":request,"mission_id":mission_id})
             results.append({"execution_id":result.execution_id,"skill_id":result.skill_id,"status":result.status,"verified":result.verified,"output":result.output,"error":result.error,"duration_ms":result.duration_ms})
             events.append({"type":"execution","skill_id":result.skill_id,"status":result.status,"verified":result.verified})
+            execute(
+                "INSERT INTO activity_logs(event_type,message,metadata) VALUES (?,?,?)",
+                ("SKILL_EXECUTION", f"{result.skill_id}: {result.status}", json.dumps({
+                    "mission_id": mission_id, "skill_id": result.skill_id,
+                    "status": result.status, "verified": result.verified,
+                    "duration_ms": result.duration_ms,
+                })),
+            )
         verified=bool(results) and all(r["verified"] for r in results)
         status="COMPLETED" if verified else ("PLANNED" if not results else "PARTIAL")
         duration_ms=(time.perf_counter()-started)*1000
