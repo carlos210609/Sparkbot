@@ -95,6 +95,7 @@ class MissionRunner:
                 result = self.worker(
                     mission["request"],
                     lambda kind, msg, **data: self.store.event(mid, kind, msg, **data),
+                    mid,
                 )
                 self.store.update(mid, status=result.get("status", "COMPLETED"), result=result)
                 self.store.event(mid, "complete", "Mission finished.", verified=result.get("verified", False))
