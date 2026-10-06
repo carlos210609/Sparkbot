@@ -25,3 +25,17 @@ def test_production_high_risk_requires_approval():
     e=SkillExecutor(r)
     result=e.execute(s.id,ExecutionContext(mode="PRODUCTION",permissions={Permission.WRITE}))
     assert result.status == "BLOCKED"
+
+
+def test_nvidia_is_default_provider(monkeypatch):
+    monkeypatch.delenv("SPARKBOT_AI_PROVIDER", raising=False)
+    from sparkbot.ai import AIClient
+    assert AIClient().provider == "nvidia"
+
+
+def test_ai_status_does_not_expose_secret(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-secret")
+    from sparkbot.ai import AIClient
+    status = AIClient().status()
+    assert status["configured"] is True
+    assert "nvapi-secret" not in str(status)
