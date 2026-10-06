@@ -21,6 +21,7 @@ from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
 from sparkbot.runtime import manifest as runtime_manifest
 from sparkbot.browser_monitor import BrowserMonitor
+from sparkbot.browser_agent import BrowserAgent
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -33,6 +34,7 @@ cognitive = CognitiveEngine()
 kernel = SparkKernel()
 mesh = AgentMesh()
 mission_store = MissionStore()
+browser = BrowserAgent()
 init_db()
 
 
@@ -52,6 +54,24 @@ WEB_TOOL = {
     },
 }
 
+
+BROWSER_TOOLS = [
+    {"type": "function", "function": {
+        "name": "browser_navigate", "description": "Open a public web page in SparkBot's real browser session.",
+        "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {
+        "name": "browser_click", "description": "Click a visible page element with a selector.",
+        "parameters": {"type": "object", "properties": {"selector": {"type": "string"}}, "required": ["selector"]}}},
+    {"type": "function", "function": {
+        "name": "browser_fill", "description": "Fill a visible form field. Never bypass CAPTCHA or authentication.",
+        "parameters": {"type": "object", "properties": {"selector": {"type": "string"}, "value": {"type": "string"}}, "required": ["selector", "value"]}}},
+    {"type": "function", "function": {
+        "name": "browser_text", "description": "Read visible text from the current browser page.",
+        "parameters": {"type": "object", "properties": {"max_chars": {"type": "integer"}}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "browser_screenshot", "description": "Capture the current browser page for verification.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+]
 
 def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
     parsed = urllib.parse.urlparse(url)
@@ -89,6 +109,16 @@ def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
 def execute_tool(name: str, args: dict) -> dict:
     if name == "web_fetch":
         return _public_web_fetch(str(args.get("url", "")), int(args.get("max_chars", 8000)))
+    if name == "browser_navigate":
+        return browser.navigate(str(args.get("url", "")))
+    if name == "browser_click":
+        return browser.click(str(args.get("selector", "")))
+    if name == "browser_fill":
+        return browser.fill(str(args.get("selector", "")), str(args.get("value", "")))
+    if name == "browser_text":
+        return browser.text(int(args.get("max_chars", 12000)))
+    if name == "browser_screenshot":
+        return browser.screenshot()
     return {"ok": False, "error": f"Unknown tool: {name}"}
 
 
@@ -140,7 +170,7 @@ memory, verification, telemetry and a safety layer. Use them as an orchestration
 
 
 def chat(messages: list[dict]) -> dict:
-    capabilities = runtime_manifest(browser_available=False)
+    capabilities = runtime_manifest(browser_available=browser.status()["started"])
     runtime_context = json.dumps(capabilities, ensure_ascii=False)
     clean = [{"role": "system", "content": SYSTEM + "\n\nRUNTIME CAPABILITIES:\n" + runtime_context}] + [
         m for m in messages
@@ -154,7 +184,7 @@ def chat(messages: list[dict]) -> dict:
     )
 
     if not user:
-        response = ai.chat(clean, tools=[WEB_TOOL], tool_executor=execute_tool)
+        response = ai.chat(clean, tools=[WEB_TOOL, *BROWSER_TOOLS], tool_executor=execute_tool)
         return {
             "reply": response.content,
             "provider": response.provider,
@@ -196,7 +226,7 @@ def chat(messages: list[dict]) -> dict:
         "content": "Live mission state (do not invent beyond it): "
         + json.dumps(compact, ensure_ascii=False),
     }
-    response = ai.chat(clean + [context_message], tools=[WEB_TOOL], tool_executor=execute_tool)
+    response = ai.chat(clean + [context_message], tools=[WEB_TOOL, *BROWSER_TOOLS], tool_executor=execute_tool)
     return {
         "reply": response.content,
         "provider": response.provider,
@@ -274,9 +304,17 @@ class H(BaseHTTPRequestHandler):
             return self.send(mesh.stats() | {"agents": [a.to_dict() for a in mesh.all()]})
 
         if path == "/api/browser":
-            monitor = BrowserMonitor()
-            events = monitor.recent(200)
-            return self.send({"events": events, "count": len(events), "status": "audit-ready"})
+            events = browser.monitor.recent(200)
+            return self.send({"events": events, "count": len(events), "status": browser.status()})
+
+        if path == "/api/browser/status":
+            return self.send(browser.status())
+
+        if path == "/api/browser/start":
+            return self.send(browser.start())
+
+        if path == "/api/browser/stop":
+            return self.send(browser.stop())
 
         if path == "/api/activity":
             raw = self._query_param("limit") or "100"
