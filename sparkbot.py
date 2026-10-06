@@ -11,9 +11,9 @@ from sparkbot.ai import AIClient
 from sparkbot.agent import SparkAgent
 from sparkbot.agent_mesh import AgentMesh
 from sparkbot.cognitive import CognitiveEngine
-from sparkbot.kernel import SparkKernel
-from sparkbot.mission_control import MissionStore, MissionRunner\nfrom sparkbot.kernel import SparkKernel\nfrom sparkbot.mission_control import MissionStore, MissionRunner
 from sparkbot.db import fetch_all, init_db
+from sparkbot.kernel import SparkKernel
+from sparkbot.mission_control import MissionRunner, MissionStore
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -26,7 +26,22 @@ cognitive = CognitiveEngine()
 kernel = SparkKernel()
 mesh = AgentMesh()
 mission_store = MissionStore()
-init_db()\n\ndef run_background(request, emit):\n    emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))\n    result = cognitive.run(request, mode="DRY_RUN")\n    for event in result.get("events", []):\n        emit(event.get("type", "event"), event.get("message", "progress"), **{k:v for k,v in event.items() if k not in {"type","message"}})\n    return result\n\nmission_runner = MissionRunner(mission_store, run_background)
+init_db()
+
+
+def run_background(request, emit):
+    emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
+    result = cognitive.run(request, mode="DRY_RUN")
+    for event in result.get("events", []):
+        emit(
+            event.get("type", "event"),
+            event.get("message", "progress"),
+            **{k: v for k, v in event.items() if k not in {"type", "message"}},
+        )
+    return result
+
+
+mission_runner = MissionRunner(mission_store, run_background)
 
 SYSTEM = """You are SparkBot, a high-end autonomous operations intelligence.
 Speak naturally, clearly and use the user's language. Behave like a strong ChatGPT-style
@@ -38,22 +53,33 @@ When execution is blocked or only simulated, say so explicitly. Do not fabricate
 accounts, traffic, followers, revenue, research results or tool actions.
 """
 
+
 def chat(messages: list[dict]) -> dict:
     clean = [{"role": "system", "content": SYSTEM}] + [
         m for m in messages
-        if isinstance(m, dict) and m.get("role") in {"user", "assistant", "system"}
+        if isinstance(m, dict)
+        and m.get("role") in {"user", "assistant", "system"}
         and isinstance(m.get("content", ""), str)
     ]
-    user = next((m.get("content", "") for m in reversed(clean) if m.get("role") == "user"), "")
+    user = next(
+        (m.get("content", "") for m in reversed(clean) if m.get("role") == "user"),
+        "",
+    )
+
     if not user:
         response = ai.chat(clean)
-        return {"reply": response.content, "provider": response.provider, "model": response.model,
-                "latency_ms": response.latency_ms, "ai_fallback": response.fallback,
-                "mission": None, "events": [], "kernel": kernel.inspect("")}
+        return {
+            "reply": response.content,
+            "provider": response.provider,
+            "model": response.model,
+            "latency_ms": response.latency_ms,
+            "ai_fallback": response.fallback,
+            "mission": None,
+            "events": [],
+            "kernel": kernel.inspect(""),
+        }
 
     mission = cognitive.run(user, mode="DRY_RUN")
-    events = mission["events"]
-    # Keep the model context compact while preserving the complete mission in the API response.
     compact = {
         "mission_id": mission["mission_id"],
         "status": mission["status"],
@@ -69,13 +95,19 @@ def chat(messages: list[dict]) -> dict:
         ],
         "critique": mission["critique"],
         "results": [
-            {"skill_id": r["skill_id"], "status": r["status"], "verified": r["verified"], "error": r["error"]}
+            {
+                "skill_id": r["skill_id"],
+                "status": r["status"],
+                "verified": r["verified"],
+                "error": r["error"],
+            }
             for r in mission["results"]
         ],
     }
     context_message = {
         "role": "system",
-        "content": "Live mission state (do not invent beyond it): " + json.dumps(compact, ensure_ascii=False),
+        "content": "Live mission state (do not invent beyond it): "
+        + json.dumps(compact, ensure_ascii=False),
     }
     response = ai.chat(clean + [context_message])
     return {
@@ -85,13 +117,18 @@ def chat(messages: list[dict]) -> dict:
         "latency_ms": response.latency_ms,
         "ai_fallback": response.fallback,
         "mission": mission,
-        "events": events,
+        "events": mission["events"],
         "kernel": kernel.inspect(user),
     }
 
+
 class H(BaseHTTPRequestHandler):
     def send(self, data, code=200, ctype="application/json"):
-        body = json.dumps(data, ensure_ascii=False).encode() if isinstance(data, (dict, list)) else data
+        body = (
+            json.dumps(data, ensure_ascii=False).encode()
+            if isinstance(data, (dict, list))
+            else data
+        )
         self.send_response(int(code))
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -100,77 +137,126 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+
         if path == "/health":
-            return self.send({"status": "ok", "service": "sparkbot", "chat": True, "agents": 700, "skills": 1500})
+            return self.send({
+                "status": "ok",
+                "service": "sparkbot",
+                "chat": True,
+                "agents": mesh.stats(),
+                "skills": len(cognitive.registry.all()),
+            })
+
         if path == "/api/ai/status":
             return self.send(ai.status())
+
         if path == "/api/skills":
             return self.send({"count": len(cognitive.registry.all())})
+
         if path == "/api/agents":
             return self.send(mesh.stats() | {"agents": [a.to_dict() for a in mesh.all()]})
-        if path == "/api/missions":\n            return self.send({"missions": [mission_store.get(mid) for mid in list(mission_store._missions.keys())[-50:]]})\n        if path.startswith("/api/missions/") and path.endswith("/events"):\n            mission_id = path.split("/")[-2]\n            return self.send({"events": mission_store.events(mission_id)})\n        if path == "/api/missions":
-            return self.send({"missions": [mission_store.get(mid) for mid in list(mission_store._missions.keys())[-50:]]})
+
+        if path == "/api/missions":
+            ids = list(mission_store._missions.keys())[-50:]
+            return self.send({"missions": [mission_store.get(mid) for mid in ids]})
+
         if path.startswith("/api/missions/") and path.endswith("/events"):
             mission_id = path.split("/")[-2]
             return self.send({"events": mission_store.events(mission_id)})
+
         if path == "/api/snapshot":
             snap = legacy_agent.snapshot()
             return self.send({
-                "goals": snap["goals"], "tasks": snap["tasks"], "activity": snap["activity"],
-                "browser_events": fetch_all("SELECT * FROM browser_events ORDER BY id DESC LIMIT 100"),
-                "missions": fetch_all("SELECT * FROM missions ORDER BY created_at DESC LIMIT 20"),
-                "mission_events": fetch_all("SELECT * FROM mission_events ORDER BY id DESC LIMIT 50"),
-                "ai": ai.status(), "skills": len(cognitive.registry.all()), "agents": mesh.stats(),
+                "goals": snap["goals"],
+                "tasks": snap["tasks"],
+                "activity": snap["activity"],
+                "browser_events": fetch_all(
+                    "SELECT * FROM browser_events ORDER BY id DESC LIMIT 100"
+                ),
+                "missions": fetch_all(
+                    "SELECT * FROM missions ORDER BY created_at DESC LIMIT 20"
+                ),
+                "mission_events": fetch_all(
+                    "SELECT * FROM mission_events ORDER BY id DESC LIMIT 50"
+                ),
+                "ai": ai.status(),
+                "skills": len(cognitive.registry.all()),
+                "agents": mesh.stats(),
             })
+
         if path.startswith("/api/missions/"):
             mission_id = path.rsplit("/", 1)[-1]
             return self.send({
-                "mission": fetch_all("SELECT * FROM missions WHERE id = ?", (mission_id,)),
-                "events": fetch_all("SELECT * FROM mission_events WHERE mission_id = ? ORDER BY id", (mission_id,)),
+                "mission": fetch_all(
+                    "SELECT * FROM missions WHERE id = ?", (mission_id,)
+                ),
+                "events": fetch_all(
+                    "SELECT * FROM mission_events WHERE mission_id = ? ORDER BY id",
+                    (mission_id,),
+                ),
             })
+
         if path in ("/", "/index.html"):
             return self.send((STATIC / "index.html").read_bytes(), 200, "text/html")
+
         if path.startswith("/static/"):
             file_path = (ROOT / path.lstrip("/")).resolve()
             static_root = STATIC.resolve()
             if file_path.is_file() and str(file_path).startswith(str(static_root)):
                 ctype = "text/css" if file_path.suffix == ".css" else "application/javascript"
                 return self.send(file_path.read_bytes(), 200, ctype)
+
         return self.send({"error": "not found"}, 404)
 
     def do_POST(self):
         try:
-            data = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
+            length = int(self.headers.get("Content-Length", "0"))
+            data = json.loads(self.rfile.read(length) or b"{}")
         except Exception:
             return self.send({"error": "invalid JSON"}, 400)
+
         path = self.path.split("?", 1)[0]
+
         if path == "/api/chat":
             messages = data.get("messages", [])
             if not isinstance(messages, list):
                 return self.send({"error": "messages must be a list"}, 400)
             return self.send(chat(messages))
+
         if path == "/api/mission":
             request = data.get("request", "")
             if not isinstance(request, str) or not request.strip():
                 return self.send({"error": "request is required"}, 400)
-            if bool(data.get("background", False)):\n                mid = mission_runner.submit(request)\n                return self.send({"mission_id": mid, "status": "QUEUED"})\n            if bool(data.get("background", False)):
-                mid = mission_runner.submit(request)
-                return self.send({"mission_id": mid, "status": "QUEUED"})
-            return self.send(cognitive.run(request, mode=str(data.get("mode", "DRY_RUN"))))
+            if bool(data.get("background", False)):
+                mission_id = mission_runner.submit(request)
+                return self.send({"mission_id": mission_id, "status": "QUEUED"})
+            return self.send(
+                cognitive.run(request, mode=str(data.get("mode", "DRY_RUN")))
+            )
+
         if path == "/api/browser/events":
             action = data.get("action")
             if not isinstance(action, str) or not action.strip():
                 return self.send({"error": "action is required"}, 400)
             from sparkbot.browser_monitor import BrowserMonitor
-            return self.send(BrowserMonitor().record(
-                action, url=str(data.get("url", "")), target=str(data.get("target", "")),
-                status=str(data.get("status", "observed")),
-                details=data.get("details") if isinstance(data.get("details"), dict) else {},
-            ))
+
+            return self.send(
+                BrowserMonitor().record(
+                    action,
+                    url=str(data.get("url", "")),
+                    target=str(data.get("target", "")),
+                    status=str(data.get("status", "observed")),
+                    details=data.get("details")
+                    if isinstance(data.get("details"), dict)
+                    else {},
+                )
+            )
+
         return self.send({"error": "not found"}, 404)
 
     def log_message(self, fmt, *args):
         print("[SparkBot]", fmt % args)
+
 
 if __name__ == "__main__":
     print(f"SparkBot Command Center: http://127.0.0.1:{PORT}")
