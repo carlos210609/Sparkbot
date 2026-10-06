@@ -49,7 +49,7 @@ def manifest(*, browser_available: bool = False) -> dict[str, Any]:
         ToolCapability(
             "FILES", "File intelligence",
             "Inspect and transform files made available to the agent.",
-            True, ("READ", "WRITE"), "low",
+            False, ("READ", "WRITE"), "low",
         ),
         ToolCapability(
             "AI", "AI reasoning",
@@ -76,7 +76,7 @@ def manifest(*, browser_available: bool = False) -> dict[str, Any]:
             "public_web": True,
             "browser_automation": browser_available,
             "statement": (
-                "Public web retrieval is available through the web gateway; "
+                "Public web search and retrieval are available through the web tools; "
                 "interactive browser control is available only when a browser runtime is configured."
             ),
         },
