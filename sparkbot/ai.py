@@ -113,21 +113,48 @@ class AIClient:
     def _chat_once(
         self,
         model: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float,
         max_tokens: int,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_executor: Any | None = None,
+        max_tool_rounds: int = 4,
     ) -> str:
-        data = self._request(
-            "/chat/completions",
-            {
+        working = [dict(m) for m in messages]
+        for _ in range(max(0, max_tool_rounds) + 1):
+            payload: dict[str, Any] = {
                 "model": model,
-                "messages": messages,
+                "messages": working,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": False,
-            },
-        )
-        return str(data["choices"][0]["message"]["content"])
+            }
+            if tools and tool_executor:
+                payload["tools"] = tools
+                payload["tool_choice"] = "auto"
+            data = self._request("/chat/completions", payload)
+            message = data["choices"][0]["message"]
+            tool_calls = message.get("tool_calls") or []
+            if not tool_calls or not tool_executor:
+                return str(message.get("content", ""))
+            working.append(message)
+            for call in tool_calls:
+                function = call.get("function") or {}
+                name = function.get("name", "")
+                raw_args = function.get("arguments", "{}")
+                try:
+                    args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    result = tool_executor(name, args if isinstance(args, dict) else {})
+                except Exception as exc:
+                    result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+                working.append({
+                    "role": "tool",
+                    "tool_call_id": call.get("id", ""),
+                    "name": name,
+                    "content": json.dumps(result, ensure_ascii=False)[:12000],
+                })
+        raise RuntimeError("tool call limit exceeded")
 
     def chat(
         self,
