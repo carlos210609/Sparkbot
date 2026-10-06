@@ -11,6 +11,9 @@
     <button class="nav active" data-page="command"><span>⌂</span><span>Command Center</span></button>
     <button class="nav" data-page="skills"><span>◈</span><span>Skills</span><em id="skillCount">1,500</em></button>
     <button class="nav" data-page="browser"><span>◌</span><span>Browser Monitor</span><em id="browserCount">0</em></button>
+    <button class="nav" data-page="social"><span>◎</span><span>Social Ops</span></button>
+    <button class="nav" data-page="approvals"><span>✓</span><span>Approvals</span><em id="approvalCount">0</em></button>
+    <button class="nav" data-page="learning"><span>↗</span><span>Learning</span></button>
     <button class="nav" data-page="activity"><span>▣</span><span>Activity</span></button>
   </nav>
   <div class="side-status"><span class="dot"></span><div><b id="sideStatus">Online</b><small id="modelSide">NVIDIA AI</small></div></div>
@@ -54,6 +57,21 @@
   <div class="toolbar"><div><b>Browser Monitor</b><small>Auditoria de ações e navegação do runtime</small></div><div><span id="browserStatus" class="badge">OFFLINE</span> <button id="browserStart" class="small-btn">Iniciar browser</button></div></div>
   <div class="browser-summary"><div><span>EVENTS</span><b id="browserTotal">0</b></div><div><span>LAST URL</span><b id="browserLastUrl">—</b></div><div><span>LAST ACTION</span><b id="browserLastAction">—</b></div></div>
   <div class="panel table-panel"><div class="panel-title"><b>Event stream</b><span>polling</span></div><div id="browserTable"></div></div>
+</section>
+
+<section id="page-social" class="page">
+  <div class="toolbar"><div><b>Social Operations</b><small>Contas, conteúdo, mídia, publicação e analytics por navegador real</small></div></div>
+  <div id="socialPlatforms" class="skills-grid"><div class="empty">Carregando plataformas…</div></div>
+</section>
+
+<section id="page-approvals" class="page">
+  <div class="toolbar"><div><b>Approval Center</b><small>Ações externas ficam aqui antes de serem executadas</small></div><button id="refreshApprovals" class="small-btn">Atualizar</button></div>
+  <div class="panel table-panel"><div class="panel-title"><b>Pending actions</b><span id="approvalState">review required</span></div><div id="approvalTable"></div></div>
+</section>
+
+<section id="page-learning" class="page">
+  <div class="toolbar"><div><b>Operational Learning</b><small>Resultados verificados usados para melhorar decisões futuras</small></div><button id="refreshLearning" class="small-btn">Atualizar</button></div>
+  <div class="panel table-panel"><div class="panel-title"><b>Learning events</b><span>persistent memory</span></div><div id="learningTable"></div></div>
 </section>
 
 <section id="page-activity" class="page">
