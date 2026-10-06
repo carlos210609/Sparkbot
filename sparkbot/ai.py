@@ -34,7 +34,7 @@ class AIClient:
     # NVIDIA returns 404 for a model that has been retired.
     DEFAULT_MODEL_PREFERENCES = (
         "openai/gpt-oss-20b",
-        "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "openai/gpt-oss-120b",
         "deepseek-ai/deepseek-v4-flash",
     )
 
