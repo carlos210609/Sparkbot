@@ -14,7 +14,6 @@ def db_path() -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path
     return PROJECT_ROOT / "data" / "sparkbot.db"
 
-DB_PATH = db_path()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS goals (
@@ -104,8 +103,9 @@ CREATE TABLE IF NOT EXISTS memories (
 """
 
 def connect() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
+    path = db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
