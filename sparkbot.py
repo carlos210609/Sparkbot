@@ -294,7 +294,10 @@ def chat(messages: list[dict]) -> dict:
     if not allowed:
         return {"reply": policy_reason, "provider": ai.provider, "model": ai.model, "latency_ms": 0, "ai_fallback": False, "mission": None, "events": [{"type": "policy", "message": policy_reason}], "kernel": kernel.inspect(user)}
 
-    mission = cognitive.run(user, mode="DRY_RUN")
+    try:
+        mission = cognitive.run(user, mode="DRY_RUN")
+    except Exception as exc:
+        mission = {"mission_id": None, "status": "DEGRADED", "mode": "DRY_RUN", "verified": False, "agents": [], "skills": [], "critique": {}, "results": [], "events": [{"type": "diagnostic", "message": "Mission planning unavailable; continuing with direct AI response."}]}
     compact = {
         "mission_id": mission["mission_id"],
         "status": mission["status"],
