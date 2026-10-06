@@ -13,8 +13,10 @@ from .engine import ExecutionContext
 from .skills.models import Permission
 from .workflows import WorkflowEngine
 from .policy import validate_request
+from .ai import AIClient
+from .browser_monitor import BrowserMonitor
 load_dotenv(); init_db()
-app=FastAPI(title="SparkBot",version="0.2.0"); agent=SparkAgent(); orchestrator=Orchestrator(); workflows=WorkflowEngine(orchestrator.registry)
+app=FastAPI(title="SparkBot",version="0.2.0"); agent=SparkAgent(); orchestrator=Orchestrator(); workflows=WorkflowEngine(orchestrator.registry); ai=AIClient(); browser=BrowserMonitor()
 static_dir=Path(__file__).resolve().parent.parent/"static"; app.mount("/static",StaticFiles(directory=static_dir),name="static")
 API_KEY=os.getenv("SPARKBOT_API_KEY",""); ALLOW_INSECURE_LOCAL=os.getenv("SPARKBOT_ALLOW_INSECURE_LOCAL","false").lower()=="true"
 def require_auth(authorization:str|None=Header(default=None))->str:
@@ -28,7 +30,27 @@ def index():return FileResponse(static_dir/"index.html")
 @app.get("/health")
 def health():return {"status":"ok","service":"sparkbot","version":"0.2.0","skills":len(orchestrator.registry.all())}
 @app.get("/api/snapshot")
-def snapshot(_:str=Depends(require_auth)):return agent.snapshot()
+def snapshot(_:str=Depends(require_auth)):
+ data=agent.snapshot()
+ data["browser_events"]=browser.recent(50)
+ data["ai"]=ai.status()
+ return data
+@app.get("/api/ai/status")
+def ai_status(_:str=Depends(require_auth)): return ai.status()
+@app.post("/api/ai/chat")
+def ai_chat(payload:dict[str,object],_:str=Depends(require_auth)):
+ messages=payload.get("messages")
+ if not isinstance(messages,list) or not all(isinstance(m,dict) for m in messages):
+  raise HTTPException(400,"messages must be a list of message objects")
+ return ai.chat(messages).__dict__
+@app.get("/api/browser/events")
+def browser_events(limit:int=50,_:str=Depends(require_auth)): return {"events":browser.recent(limit)}
+@app.post("/api/browser/events")
+def browser_event(payload:dict[str,object],_:str=Depends(require_auth)):
+ action=payload.get("action")
+ if not isinstance(action,str) or not action.strip(): raise HTTPException(400,"action is required")
+ return browser.record(action, url=str(payload.get("url","")), target=str(payload.get("target","")),
+                       status=str(payload.get("status","observed")), details=payload.get("details") if isinstance(payload.get("details"),dict) else {})
 @app.get("/api/skills")
 def skills(_:str=Depends(require_auth)):return {"count":len(orchestrator.registry.all()),"skills":[s.to_dict() for s in orchestrator.registry.all()]}
 @app.post("/api/skills/route")
