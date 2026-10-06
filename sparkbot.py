@@ -1,0 +1,2 @@
+# SparkBot launcher
+print('SparkBot')
