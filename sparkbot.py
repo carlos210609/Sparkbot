@@ -123,9 +123,9 @@ def execute_tool(name: str, args: dict) -> dict:
 
 
 
-def run_background(request, emit):
+def run_background(request, emit, mission_id=None):
     emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
-    result = cognitive.run(request, mode="DRY_RUN")
+    result = cognitive.run(request, mode="DRY_RUN", mission_id=mission_id)
     for event in result.get("events", []):
         emit(
             event.get("type", "event"),
