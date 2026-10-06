@@ -107,7 +107,8 @@ class BrowserAgent:
             state = self._call(self._status_state)
         state["installed"] = installed
         state["system_browser"] = _system_browser_executable()
-        state["browser_mode"] = "system-browser" if state["system_browser"] else "unavailable"
+        state["available"] = bool(installed and state["system_browser"])
+        state["browser_mode"] = "system-browser" if state["available"] else "unavailable"
         return state
 
     def start(self) -> dict[str, Any]:
