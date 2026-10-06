@@ -130,6 +130,8 @@ class AIClient:
                 "max_tokens": max_tokens,
                 "stream": False,
             }
+            if model.startswith("openai/gpt-oss-"):
+                payload["reasoning_effort"] = os.getenv("SPARKBOT_REASONING_EFFORT", "medium")
             if tools and tool_executor:
                 payload["tools"] = tools
                 payload["tool_choice"] = "auto"
