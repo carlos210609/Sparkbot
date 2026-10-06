@@ -62,7 +62,10 @@ class BrowserAgent:
             from playwright.sync_api import sync_playwright
             self.profile_dir.mkdir(parents=True, exist_ok=True)
             self._playwright = sync_playwright().start()
-            self._context = self._playwright.chromium.launch_persistent_context(
+            launch_args = {"headless": os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0", "viewport": {"width": 1440, "height": 900"}}
+            executable = _system_browser_executable()
+            if executable: launch_args["executable_path"] = executable
+            self._context = self._playwright.chromium.launch_persistent_context(str(self.profile_dir), **launch_args)
                 str(self.profile_dir),
                 headless=os.getenv("SPARKBOT_BROWSER_HEADLESS", "1") != "0",
                 viewport={"width": 1440, "height": 900},
@@ -105,6 +108,8 @@ class BrowserAgent:
         with self._state_lock:
             state = self._call(self._status_state)
         state["installed"] = installed
+        state["system_browser"] = _system_browser_executable()
+        state["browser_mode"] = "system-browser" if state["system_browser"] else "playwright-managed"
         return state
 
     def start(self) -> dict[str, Any]:
