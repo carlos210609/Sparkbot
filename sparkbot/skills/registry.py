@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import replace
 from typing import Iterable
-from .models import Permission, Skill, SkillRisk
+from .models import Skill, SkillRisk
 from .catalog import CATALOG
 
 class SkillRegistry:
