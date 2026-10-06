@@ -24,8 +24,7 @@ Override the model with SPARKBOT_NVIDIA_MODEL if needed. Never commit NVIDIA_API
 The browser runtime is optional because Chromium is a separate dependency.
 
     python3 -m pip install -e ".[browser]"
-    python3 -m playwright install chromium
-    python3 sparkbot.py
+        python3 sparkbot.py
 
 The Browser Monitor shows whether Playwright/Chromium is available. The browser supports public navigation, clicks, form filling, visible-text inspection and screenshots. Actions are audited. It does not bypass CAPTCHA, authentication, platform limits or security controls.
 
@@ -77,8 +76,12 @@ Public publishing, messages and other externally visible side effects go through
 
 SparkBot's learning layer is outcome-based: it records successful/verified browser and social operations in persistent memory and uses those observations to improve future strategy selection. It does not retrain NVIDIA model weights automatically.
 
-Install the browser runtime:
+Install the Python browser automation runtime (no browser download is required if Chrome/Chromium/Edge is already installed):
 
     python3 -m pip install -e ".[browser]"
     python3 -m playwright install chromium
     python3 sparkbot.py
+
+
+### Browser without downloading a browser
+SparkBot automatically detects an existing Google Chrome, Chromium or Microsoft Edge installation and drives it through Playwright. Set `SPARKBOT_BROWSER_EXECUTABLE` if the browser is installed in a custom path. Playwright is still required as the Python automation library, but SparkBot does not download a second browser when a compatible system browser is available.
