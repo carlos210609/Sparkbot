@@ -58,8 +58,8 @@ class VerificationEngine:
             return True, "simulation contract verified; no external side effect claimed"
         if output.get("verified") is True:
             return True, "handler explicitly verified the result"
-        if skill.verification_method == "output_exists" and output:
-            return True, "non-empty handler output returned"
+        if skill.verification_method == "output_exists" and output.get("verified") is True:
+            return True, "handler returned explicit verified evidence"
         return False, "production handler did not provide verifiable evidence"
 
 
