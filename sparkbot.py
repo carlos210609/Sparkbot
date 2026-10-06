@@ -264,7 +264,7 @@ memory, verification, telemetry and a safety layer. Use them as an orchestration
 
 
 def chat(messages: list[dict]) -> dict:
-    capabilities = runtime_manifest(browser_available=browser.status()["installed"])
+    capabilities = runtime_manifest(browser_available=browser.status()["available"])
     runtime_context = json.dumps(capabilities, ensure_ascii=False)
     clean = [{"role": "system", "content": SYSTEM + "\n\nRUNTIME CAPABILITIES:\n" + runtime_context}] + [
         m for m in messages
