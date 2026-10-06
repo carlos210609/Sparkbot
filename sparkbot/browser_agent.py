@@ -53,12 +53,20 @@ class BrowserAgent:
                 installed = True
             except ImportError:
                 pass
+            url = ""
+            title = ""
+            if self._page:
+                try:
+                    url = self._page.url
+                    title = self._page.title()
+                except Exception as exc:
+                    self._error = f"{type(exc).__name__}: {exc}"
             return {
                 "installed": installed,
                 "started": self._started,
                 "page": bool(self._page),
-                "url": self._page.url if self._page else "",
-                "title": self._page.title() if self._page else "",
+                "url": url,
+                "title": title,
                 "error": self._error,
                 "profile_dir": str(self.profile_dir),
             }
