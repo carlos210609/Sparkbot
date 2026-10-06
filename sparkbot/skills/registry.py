@@ -36,7 +36,18 @@ class SkillRegistry:
         self._validate()
 
 def build_catalog() -> list[Skill]:
-    return [Skill(id=i, name=name, description=f"Operational capability: {name}.", category=cat,
-                   outputs=["verified_result"], success_conditions=["verification_passed"],
-                   failure_conditions=["execution_error","verification_failed"])
-            for i,cat,name in CATALOG]
+    return [
+        Skill(
+            id=item[0],
+            name=item[2],
+            description=item[3],
+            category=item[1],
+            inputs=["request", "context"],
+            outputs=["verified_result"],
+            tools=["internal"],
+            success_conditions=["verification_passed"],
+            failure_conditions=["execution_error", "verification_failed"],
+            verification_method="output_exists",
+        )
+        for item in CATALOG
+    ]
