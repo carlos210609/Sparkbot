@@ -22,7 +22,8 @@ from sparkbot.kernel import SparkKernel
 from sparkbot.mission_control import MissionRunner, MissionStore
 from sparkbot.runtime import manifest as runtime_manifest
 from sparkbot.policy import validate_request
-from sparkbot.browser_agent import BrowserAgent\nfrom sparkbot.social import SocialController, catalog as social_catalog
+from sparkbot.browser_agent import BrowserAgent
+from sparkbot.social import SocialController, catalog as social_catalog
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -36,6 +37,7 @@ kernel = SparkKernel()
 mesh = AgentMesh()
 mission_store = MissionStore()
 browser = BrowserAgent()
+social = SocialController(browser)
 init_db()
 
 
@@ -65,7 +67,42 @@ BROWSER_TOOLS = [
     {"type": "function", "function": {
         "name": "browser_screenshot", "description": "Capture the current browser page for verification.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "browser_elements", "description": "Inspect interactive elements on the current page before choosing a selector.",
+        "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 150}}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "browser_upload", "description": "Upload a local media file through a visible file input.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "social_catalog", "description": "List supported social and content platforms.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "social_open", "description": "Open the official home or signup page for a supported platform. Security verification remains human.",
+        "parameters": {"type": "object", "properties": {"platform": {"type": "string"}, "purpose": {"type": "string", "enum": ["home","signup"]}}, "required": ["platform"]}}},
+    {"type": "function", "function": {
+        "name": "social_prepare_post", "description": "Prepare a social post draft without publishing it.",
+        "parameters": {"type": "object", "properties": {"platform": {"type": "string"}, "caption": {"type": "string"}, "media_path": {"type": "string"}}, "required": ["platform"]}}},
+    {"type": "function", "function": {
+        "name": "social_publish", "description": "Stage a real social publication for explicit human approval.",
+        "parameters": {"type": "object", "properties": {"platform": {"type": "string"}, "caption": {"type": "string"}, "media_path": {"type": "string"}}, "required": ["platform","caption"]}}},
+
 ]
+
+def _create_approval(action: str, args: dict, reason: str) -> str:
+    import uuid
+    approval_id = uuid.uuid4().hex
+    value = json.dumps({"action": action, "args": args, "reason": reason, "status": "PENDING"}, ensure_ascii=False)
+    execute("INSERT INTO memories(kind,key,value,importance) VALUES (?,?,?,?)",
+            ("approval", approval_id, value, 1.0))
+    return approval_id
+
+def _learn(subject: str, action: str, result: dict) -> None:
+    success = bool(result.get("ok"))
+    verified = bool(result.get("verified"))
+    score = 0.55 * int(success) + 0.35 * int(verified)
+    kernel.memory.remember("learning", f"{subject}:{action}",
+                           {"success": success, "verified": verified, "score": score},
+                           score)
 
 def _public_web_search(query: str, limit: int = 8) -> dict:
     query = str(query).strip()
@@ -131,15 +168,36 @@ def execute_tool(name: str, args: dict) -> dict:
     if name == "web_fetch":
         return _public_web_fetch(str(args.get("url", "")), int(args.get("max_chars", 8000)))
     if name == "browser_navigate":
-        return browser.navigate(str(args.get("url", "")))
+        result = browser.navigate(str(args.get("url", ""))); _learn("browser","navigate",result); return result
     if name == "browser_click":
-        return browser.click(str(args.get("selector", "")))
+        result = browser.click(str(args.get("selector", "")))
+        if result.get("approval_required"):
+            aid = _create_approval("browser_click", {"selector": args.get("selector","")},
+                                   "The target appears to cause an external side effect.")
+            result["approval_id"] = aid
+        _learn("browser","click",result); return result
     if name == "browser_fill":
-        return browser.fill(str(args.get("selector", "")), str(args.get("value", "")))
+        result = browser.fill(str(args.get("selector", "")), str(args.get("value", "")))
+        _learn("browser","fill",result); return result
     if name == "browser_text":
-        return browser.text(int(args.get("max_chars", 12000)))
+        result = browser.text(int(args.get("max_chars", 12000))); _learn("browser","text",result); return result
     if name == "browser_screenshot":
-        return browser.screenshot()
+        result = browser.screenshot(); _learn("browser","screenshot",result); return result
+    if name == "browser_elements":
+        result = browser.elements(int(args.get("limit", 80))); _learn("browser","elements",result); return result
+    if name == "browser_upload":
+        result = browser.upload(str(args.get("path", ""))); _learn("browser","upload",result); return result
+    if name == "social_catalog":
+        return {"ok": True, "platforms": social_catalog()}
+    if name == "social_open":
+        result = social.open(str(args.get("platform","")), str(args.get("purpose","home"))); _learn("social","open",result); return result
+    if name == "social_prepare_post":
+        result = social.prepare_post(str(args.get("platform","")), str(args.get("caption","")), str(args.get("media_path",""))); _learn("social","draft",result); return result
+    if name == "social_publish":
+        payload = {"platform":str(args.get("platform","")), "caption":str(args.get("caption","")), "media_path":str(args.get("media_path",""))}
+        aid = _create_approval("social_publish", payload, "External publication requires explicit approval.")
+        return {"ok": False, "approval_required": True, "approval_id": aid,
+                "message": "Publication staged. Approve it from the approval center."}
     return {"ok": False, "error": f"Unknown tool: {name}"}
 
 
