@@ -11,6 +11,7 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+import re
 
 from sparkbot.ai import AIClient
 from sparkbot.agent import SparkAgent
@@ -39,21 +40,14 @@ browser = BrowserAgent()
 init_db()
 
 
-WEB_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "web_fetch",
-        "description": "Fetch a public HTTP/HTTPS web page for research or verification. Use this when current public internet information is needed.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string", "description": "Public http or https URL to retrieve."},
-                "max_chars": {"type": "integer", "minimum": 1000, "maximum": 12000, "description": "Maximum text returned."},
-            },
-            "required": ["url"],
-        },
-    },
-}
+WEB_TOOLS = [
+    {"type": "function", "function": {
+        "name": "web_search", "description": "Search the public web for current information and return source URLs.",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "web_fetch", "description": "Fetch a public HTTP/HTTPS web page for research or verification.",
+        "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "max_chars": {"type": "integer", "minimum": 1000, "maximum": 12000}}, "required": ["url"]}}},
+]
 
 
 BROWSER_TOOLS = [
@@ -73,6 +67,31 @@ BROWSER_TOOLS = [
         "name": "browser_screenshot", "description": "Capture the current browser page for verification.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
 ]
+
+def _public_web_search(query: str, limit: int = 8) -> dict:
+    query = str(query).strip()
+    if not query:
+        return {"ok": False, "error": "query is required"}
+    limit = max(1, min(int(limit), 10))
+    url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote_plus(query)
+    request = urllib.request.Request(url, headers={"User-Agent": "SparkBot/1.0", "Accept": "text/html"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            raw = response.read(1_500_000)
+            charset = response.headers.get_content_charset() or "utf-8"
+            html = raw.decode(charset, errors="replace")
+        results = []
+        for match in re.finditer(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.I | re.S):
+            href = re.sub(r"&amp;", "&", match.group(1))
+            title = re.sub(r"<[^>]+>", " ", match.group(2))
+            title = re.sub(r"\s+", " ", title).strip()
+            if href.startswith("//"): href = "https:" + href
+            if href.startswith("http"): results.append({"title": title, "url": href})
+            if len(results) >= limit: break
+        return {"ok": True, "query": query, "results": results, "count": len(results)}
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return {"ok": False, "error": f"Web search failed: {type(exc).__name__}: {exc}"}
+
 
 def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
     parsed = urllib.parse.urlparse(url)
@@ -108,6 +127,8 @@ def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
 
 
 def execute_tool(name: str, args: dict) -> dict:
+    if name == "web_search":
+        return _public_web_search(str(args.get("query", "")), int(args.get("limit", 8)))
     if name == "web_fetch":
         return _public_web_fetch(str(args.get("url", "")), int(args.get("max_chars", 8000)))
     if name == "browser_navigate":
@@ -185,7 +206,7 @@ def chat(messages: list[dict]) -> dict:
     )
 
     if not user:
-        response = ai.chat(clean, tools=[WEB_TOOL, *BROWSER_TOOLS], tool_executor=execute_tool)
+        response = ai.chat(clean, tools=[*WEB_TOOLS, *BROWSER_TOOLS], tool_executor=execute_tool)
         return {
             "reply": response.content,
             "provider": response.provider,
