@@ -29,8 +29,8 @@ class CognitiveEngine:
                 "concerns":["External side effects require explicit permissions/approval."] if high_risk else [],
                 "agent_count":len(agents),"skill_count":len(skills),"confidence":0.92 if skills else 0.55}
 
-    def run(self, request: str, *, mode: str="DRY_RUN", max_skills: int=8) -> dict[str, Any]:
-        started=time.perf_counter(); mission_id=uuid.uuid4().hex
+    def run(self, request: str, *, mode: str="DRY_RUN", max_skills: int=8, mission_id: str | None = None) -> dict[str, Any]:
+        started=time.perf_counter(); mission_id=mission_id or uuid.uuid4().hex
         skills=self.router.route(request, limit=max_skills); skill_dicts=[s.to_dict() for s in skills]
         agents=self.recruit(request); critique=self.critique(request,agents,skill_dicts)
         execute_mode="DRY_RUN" if critique["requires_approval"] else mode
