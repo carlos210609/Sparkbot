@@ -1,29 +1,53 @@
 # SparkBot
 
-SparkBot is an operational agent platform with a 1,500-skill registry, workflows, policy controls, NVIDIA AI integration and browser-action telemetry.
+SparkBot is an agent runtime with 1,500 operational skill slots, a 700-profile specialist mesh, mission control, persistent telemetry, NVIDIA AI, public web search/fetch and an optional real Chromium browser.
 
-## Rodar sem instalar dependências
-
-O comando principal agora usa somente a biblioteca padrão do Python.
-
-Comandos:
+## Quick start
 
     git clone https://github.com/carlos210609/Sparkbot.git
     cd Sparkbot
     export NVIDIA_API_KEY="nvapi-SUA_CHAVE"
     python3 sparkbot.py
 
-Abra http://127.0.0.1:8000.
+Open http://127.0.0.1:8000.
 
-Opcional:
+The launcher is intentionally lightweight and does not require FastAPI/Uvicorn for the command center.
 
-    export SPARKBOT_PORT=8000
-    export SPARKBOT_NVIDIA_MODEL=auto
+## NVIDIA
 
-O modo auto consulta o catálogo NVIDIA e escolhe um modelo disponível da lista de preferência. Disponibilidade e preço podem mudar.
+SparkBot uses NVIDIA hosted chat completions by default at https://integrate.api.nvidia.com/v1/chat/completions. The default model is openai/gpt-oss-20b. NVIDIA documents this model as supporting agentic tool use.
 
-O launcher leve fornece dashboard, NVIDIA AI, SQLite, auditoria de ações do navegador e endpoints básicos, sem FastAPI/Uvicorn/Pydantic.
+Override the model with SPARKBOT_NVIDIA_MODEL if needed. Never commit NVIDIA_API_KEY.
 
-A aplicação FastAPI completa continua no projeto como stack avançada e pode ser usada separadamente quando as dependências forem instaladas.
+## Real browser agent
 
-Nunca coloque sua NVIDIA_API_KEY no GitHub.
+The browser runtime is optional because Chromium is a separate dependency.
+
+    python3 -m pip install -e ".[browser]"
+    python3 -m playwright install chromium
+    python3 sparkbot.py
+
+The Browser Monitor shows whether Playwright/Chromium is available. The browser supports public navigation, clicks, form filling, visible-text inspection and screenshots. Actions are audited. It does not bypass CAPTCHA, authentication, platform limits or security controls.
+
+Browser profile data is stored under .sparkbot-browser by default. Keep that directory private.
+
+## Agent capabilities
+
+- web_search — public web search
+- web_fetch — public web retrieval
+- browser_navigate / browser_click / browser_fill / browser_text / browser_screenshot
+- persistent SQLite missions, memory and audit events
+- 700 specialist agent profiles
+- 1,500 skill slots
+- permission and verification engine
+
+The model is instructed to reason as an agent, but the runtime remains authoritative: SparkBot must not claim an action occurred without tool evidence.
+
+## Development
+
+    python3 -m pip install -e ".[dev]"
+    python3 -m compileall -q sparkbot.py sparkbot
+    python3 -m pytest -q
+    ruff check .
+
+If GitHub Actions is enabled for the repository, the same checks run on push and pull request.
