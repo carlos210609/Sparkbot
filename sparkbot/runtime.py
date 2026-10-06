@@ -36,6 +36,11 @@ class ToolCapability:
 def manifest(*, browser_available: bool = False) -> dict[str, Any]:
     tools = [
         ToolCapability(
+            "WEB_SEARCH", "Web search",
+            "Search public web sources and return source URLs for follow-up retrieval.",
+            True, ("READ",), "low",
+        ),
+        ToolCapability(
             "WEB_FETCH", "Web fetch",
             "Retrieve public HTTP/HTTPS resources for research and verification.",
             True, ("READ",), "low",
