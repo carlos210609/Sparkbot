@@ -62,7 +62,7 @@ class H(BaseHTTPRequestHandler):
             return self.send((STATIC/"index.html").read_bytes(),"200","text/html")
         if p.startswith("/static/"):
             f=(ROOT/p.lstrip("/")).resolve()
-            if f.is_file() and str(f).startswith(str(STATIC.resolve())): return self.send(f.read_bytes(),"200","text/css" if f.suffix==".css" else "application/javascript")
+            if f.is_file() and str(f).startswith(str(STATIC.resolve())): return self.send(f.read_bytes(),200,"text/css" if f.suffix==".css" else "application/javascript")
         return self.send({"error":"not found"},404)
     def do_POST(self):
         try:data=json.loads(self.rfile.read(int(self.headers.get("Content-Length","0"))) or b"{}")
