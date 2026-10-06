@@ -162,6 +162,9 @@ def _public_web_fetch(url: str, max_chars: int = 8000) -> dict:
         return {"ok": False, "error": f"Web fetch failed: {type(exc).__name__}: {exc}"}
 
 
+def browser_autonomy_enabled() -> bool:
+    return os.getenv("SPARKBOT_BROWSER_AUTONOMY", "1").strip().lower() in {"1", "true", "yes", "on"}
+
 def execute_tool(name: str, args: dict) -> dict:
     if name == "web_search":
         return _public_web_search(str(args.get("query", "")), int(args.get("limit", 8)))
@@ -170,14 +173,14 @@ def execute_tool(name: str, args: dict) -> dict:
     if name == "browser_navigate":
         result = browser.navigate(str(args.get("url", ""))); _learn("browser","navigate",result); return result
     if name == "browser_click":
-        result = browser.click(str(args.get("selector", "")))
+        result = browser.click(str(args.get("selector", "")), confirmed=browser_autonomy_enabled())
         if result.get("approval_required"):
             aid = _create_approval("browser_click", {"selector": args.get("selector","")},
                                    "The target appears to cause an external side effect.")
             result["approval_id"] = aid
         _learn("browser","click",result); return result
     if name == "browser_fill":
-        result = browser.fill(str(args.get("selector", "")), str(args.get("value", "")))
+        result = browser.fill(str(args.get("selector", "")), str(args.get("value", "")), confirmed=browser_autonomy_enabled())
         _learn("browser","fill",result); return result
     if name == "browser_text":
         result = browser.text(int(args.get("max_chars", 12000))); _learn("browser","text",result); return result
@@ -242,15 +245,18 @@ OBSERVE -> UNDERSTAND -> PLAN -> SELECT AGENTS/SKILLS -> CHECK PERMISSIONS -> EX
 VERIFY -> MEASURE -> LEARN -> REPORT -> NEXT ACTION.
 
 TOOL AWARENESS:
-The runtime may expose WEB_SEARCH, WEB_FETCH, BROWSER, SOCIAL_OPERATIONS, CONTENT_CREATION, FILES, AI and INTERNAL capabilities. Use web_search/web_fetch for research. Use browser_elements before selecting UI selectors. Use social_catalog and social_open for supported platforms, social_prepare_post for drafts, and social_publish when the user wants a public post; social_publish always pauses for approval. Browser automation is available only when its runtime is configured. A listed capability is not proof that an action happened.
+The runtime may expose WEB_SEARCH, WEB_FETCH, BROWSER, SOCIAL_OPERATIONS, CONTENT_CREATION, FILES, AI and INTERNAL capabilities. Use web_search/web_fetch for research. Use browser_elements before selecting UI selectors. Use social_catalog and social_open for supported platforms, social_prepare_post for drafts, and social_publish when the user wants a public post; social_publish is the explicit public-publication action; browser automation is available only when its runtime is configured. When browser autonomy is enabled, do not repeatedly ask the user for permission to navigate, inspect pages, fill ordinary non-sensitive fields, click ordinary controls, or upload files. Continue automatically until the task is complete or a genuine security/manual checkpoint is reached. A listed capability is not proof that an action happened.
 
 LEARNING:
 Treat verified outcomes as feedback. Reuse successful patterns, notice repeated failures and prefer strategies with better verified outcomes. Never learn around security controls, approval gates, platform limits or user consent.
 
 EXTERNAL ACTIONS:
-You may propose and, when the runtime actually supports it, execute legitimate
-user-authorized web/browser work. Account creation or modification uses the user's real
-authorization/data and the approval gate. Never create fake accounts, bypass
+The user has granted ongoing browser autonomy through the runtime setting. Do not ask for
+conversational confirmation before every browser action. Execute legitimate browser steps
+continuously and verify each result. Account creation or modification may be automated only
+with user-authorized account data; authentication, OTP/2FA, CAPTCHA and other security
+checkpoints remain manual. Public posting, deletion and other high-impact actions remain
+protected by explicit safety policy. Never create fake accounts, bypass
 authentication/CAPTCHA, evade platform limits, spam, or impersonate people.
 
 TRUTHFULNESS:
