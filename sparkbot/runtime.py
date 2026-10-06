@@ -67,6 +67,21 @@ def manifest(*, browser_available: bool = False) -> dict[str, Any]:
             True, ("READ", "WRITE"), "low",
         ),
         ToolCapability(
+            "SOCIAL_OPERATIONS", "Social operations",
+            "Manage user-authorized social profiles, content drafts, media and analytics through the browser.",
+            browser_available, ("READ", "WRITE", "COMMUNICATE"), "high", True,
+        ),
+        ToolCapability(
+            "CONTENT_CREATION", "Content creation",
+            "Prepare copy, upload media and operate supported AI-video workflows.",
+            browser_available, ("READ", "WRITE"), "medium", True,
+        ),
+        ToolCapability(
+            "LEARNING", "Operational learning",
+            "Persist verified outcomes and rank future strategies without weakening security policy.",
+            True, ("READ", "WRITE"), "low",
+        ),
+        ToolCapability(
             "EXTERNAL_ACCOUNT", "External account actions",
             "Create or modify user-authorized external accounts through supported browser integrations.",
             browser_available, ("ACCOUNT", "WRITE"), "high", True,
