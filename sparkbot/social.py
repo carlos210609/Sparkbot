@@ -95,7 +95,7 @@ class SocialController:
         p = get_platform(platform)
         if not self.browser.status().get("started"):
             self.browser.start()
-        if self.browser.status().get("url","") in ("", "about:blank"):
+        if p.id not in self.browser.status().get("url",""):
             opened = self.browser.navigate(p.home_url)
             if not opened.get("ok"):
                 return opened
@@ -110,7 +110,7 @@ class SocialController:
         if not publish:
             return {"ok": True, "verified": True, "platform": p.id, "draft": True,
                     "message": "Draft prepared; nothing was published.", "elements": self.browser.elements()}
-        publish_result = self.browser.click_publish()
+        publish_result = self.browser.click_publish(confirmed=publish)
         if not publish_result.get("ok"):
             return publish_result
         verification = self.browser.elements()
