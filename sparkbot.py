@@ -296,7 +296,7 @@ def chat(messages: list[dict]) -> dict:
 
     try:
         mission = cognitive.run(user, mode="DRY_RUN")
-    except Exception as exc:
+    except Exception:
         mission = {"mission_id": None, "status": "DEGRADED", "mode": "DRY_RUN", "verified": False, "agents": [], "skills": [], "critique": {}, "results": [], "events": [{"type": "diagnostic", "message": "Mission planning unavailable; continuing with direct AI response."}]}
     compact = {
         "mission_id": mission["mission_id"],
