@@ -1,34 +1,29 @@
 # SparkBot
 
-Autonomous AI growth operating system for legitimate marketing, sales and growth operations.
+SparkBot is an operational agent platform with a 1,500-skill registry, workflows, policy controls, NVIDIA AI integration and browser-action telemetry.
 
-## AI provider
+## Rodar sem instalar dependências
 
-SparkBot now defaults to **NVIDIA** through the NVIDIA API Catalog's OpenAI-compatible endpoint. Set `NVIDIA_API_KEY` and leave `SPARKBOT_NVIDIA_MODEL=auto` to discover an available model from the configured preference list. The key is read only from the environment and is never stored in the repository.
+O comando principal agora usa somente a biblioteca padrão do Python.
 
-```bash
-export NVIDIA_API_KEY="nvapi-..."
-export SPARKBOT_AI_PROVIDER="nvidia"
-export SPARKBOT_NVIDIA_MODEL="auto"
-```
+Comandos:
 
-NVIDIA documents the API Catalog endpoint as `https://integrate.api.nvidia.com/v1` and exposes OpenAI-compatible chat completions and model discovery. The availability/pricing of individual models can change, so SparkBot does not falsely label a model as permanently free.
+    git clone https://github.com/carlos210609/Sparkbot.git
+    cd Sparkbot
+    export NVIDIA_API_KEY="nvapi-SUA_CHAVE"
+    python3 sparkbot.py
 
-## Browser monitoring
+Abra http://127.0.0.1:8000.
 
-The dashboard exposes an auditable browser-event stream at `/api/browser/events`. Actions can be recorded with action, URL, target, status and structured details. Events are persisted in SQLite and shown live in the Command Center.
+Opcional:
 
-This telemetry layer does not bypass authentication, CAPTCHAs, platform limits or other security controls.
+    export SPARKBOT_PORT=8000
+    export SPARKBOT_NVIDIA_MODEL=auto
 
-## Local run
+O modo auto consulta o catálogo NVIDIA e escolhe um modelo disponível da lista de preferência. Disponibilidade e preço podem mudar.
 
-```bash
-cp .env.example .env
-python -m uvicorn sparkbot.app:app --host 0.0.0.0 --port 8000
-```
+O launcher leve fornece dashboard, NVIDIA AI, SQLite, auditoria de ações do navegador e endpoints básicos, sem FastAPI/Uvicorn/Pydantic.
 
-Open `http://127.0.0.1:8000`.
+A aplicação FastAPI completa continua no projeto como stack avançada e pode ser usada separadamente quando as dependências forem instaladas.
 
-## Status
-
-Phase 1 foundation in progress.
+Nunca coloque sua NVIDIA_API_KEY no GitHub.
