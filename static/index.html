@@ -1,25 +1,65 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SparkBot — Autonomous Growth Command Center</title><link rel="stylesheet" href="/static/styles.css"></head>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SparkBot — Agent Command Center</title><link rel="stylesheet" href="/static/styles.css"></head>
 <body>
 <div class="ambient a1"></div><div class="ambient a2"></div>
 <main class="app">
 <aside class="sidebar">
-  <div class="brand"><span class="brandmark">S</span><div><b>SPARKBOT</b><small>Autonomous Growth OS</small></div></div>
-  <nav><button class="nav active">⌂ <span>Command Center</span></button><button class="nav">◈ <span>Skills</span><em id="skillCount">1,500</em></button><button class="nav">◌ <span>Browser monitor</span></button><button class="nav">▣ <span>Activity</span></button></nav>
+  <div class="brand"><span class="brandmark">S</span><div><b>SPARKBOT</b><small>Agent Command Center</small></div></div>
+  <nav>
+    <button class="nav active" data-page="command"><span>⌂</span><span>Command Center</span></button>
+    <button class="nav" data-page="skills"><span>◈</span><span>Skills</span><em id="skillCount">1,500</em></button>
+    <button class="nav" data-page="browser"><span>◌</span><span>Browser Monitor</span><em id="browserCount">0</em></button>
+    <button class="nav" data-page="activity"><span>▣</span><span>Activity</span></button>
+  </nav>
   <div class="side-status"><span class="dot"></span><div><b id="sideStatus">Online</b><small id="modelSide">NVIDIA AI</small></div></div>
 </aside>
+
 <section class="workspace">
-<header class="header"><div><div class="eyebrow">COMMAND CENTER / LIVE</div><h1>What should SparkBot do?</h1><p>Talk to the agent. It plans, executes authorized work, verifies outcomes and reports back.</p></div><div class="header-actions"><span class="live"><i></i> LIVE</span></div></header>
-<section class="metrics"><div><span>AI</span><b id="aiModel">—</b><small id="aiState">Connecting</small></div><div><span>SKILLS</span><b id="metricSkills">1,500</b><small>operational registry</small></div><div><span>AGENTS</span><b id="metricAgents">700</b><small>specialist mesh</small></div><div><span>EXECUTIONS</span><b id="metricExec">0</b><small>this session</small></div><div><span>BROWSER</span><b id="metricBrowser">0</b><small>audited events</small></div></section>
+<header class="header">
+  <div><div class="eyebrow" id="pageEyebrow">COMMAND CENTER / LIVE</div>
+  <h1 id="pageTitle">What should SparkBot do?</h1>
+  <p id="pageDescription">Converse with the agent, inspect its runtime and follow verified execution.</p></div>
+  <div class="header-actions"><span class="live"><i></i> LIVE</span></div>
+</header>
+
+<section class="metrics">
+  <div><span>AI</span><b id="aiModel">—</b><small id="aiState">Connecting</small></div>
+  <div><span>SKILLS</span><b id="metricSkills">1,500</b><small>operational registry</small></div>
+  <div><span>AGENTS</span><b id="metricAgents">700</b><small>specialist mesh</small></div>
+  <div><span>EXECUTIONS</span><b id="metricExec">0</b><small>this session</small></div>
+  <div><span>BROWSER</span><b id="metricBrowser">0</b><small>audited events</small></div>
+</section>
+
+<section id="page-command" class="page active">
 <section class="chat-shell">
-  <div class="chat-head"><div><b>Agent chat</b><span> · SparkBot</span></div><div class="mode"><span class="pulse"></span> autonomous loop</div></div>
-  <div id="messages" class="messages"><div class="msg bot"><div class="avatar">S</div><div class="bubble"><b>Olá. Eu sou o SparkBot.</b><p>Me diga o que você quer alcançar. Vou raciocinar, selecionar as capacidades certas, executar o que for autorizado e te atualizar aqui mesmo.</p><div class="chips"><button data-prompt="Analise minha estratégia de marketing e encontre as 3 maiores oportunidades.">Encontrar oportunidades</button><button data-prompt="Crie uma estratégia de crescimento para meu produto.">Estratégia de crescimento</button><button data-prompt="Monte um plano para crescer no Instagram de forma legítima.">Instagram</button></div></div></div></div>
-  <form id="chatForm" class="composer"><textarea id="input" rows="1" placeholder="Fale com o SparkBot…"></textarea><button id="send" type="submit"><span>Enviar</span> ↑</button></form>
-  <div class="composer-meta"><span>Enter envia · Shift+Enter quebra linha</span><span>DRY-RUN para ações de risco</span></div>
+  <div class="chat-head"><div><b>Agent chat</b><span> · SparkBot</span></div><div class="mode"><span class="pulse"></span> runtime aware</div></div>
+  <div id="messages" class="messages"><div class="msg bot"><div class="avatar">S</div><div class="bubble"><b>Olá. Eu sou o SparkBot.</b><p>Eu opero como agente: entendo objetivos, seleciono agentes e skills, verifico permissões, executo ferramentas disponíveis e só declaro resultados com evidência.</p><div class="chips"><button data-prompt="Pesquise na web e encontre as 3 maiores oportunidades para meu produto.">Pesquisar na web</button><button data-prompt="Analise minha estratégia de marketing e encontre as 3 maiores oportunidades.">Encontrar oportunidades</button><button data-prompt="Monte um plano para crescer no Instagram de forma legítima.">Instagram</button></div></div></div></div>
+  <form id="chatForm" class="composer"><textarea id="input" rows="1" placeholder="Dê uma missão ao SparkBot…"></textarea><button id="send" type="submit"><span>Executar</span> ↑</button></form>
+  <div class="composer-meta"><span>Enter envia · Shift+Enter quebra linha</span><span>Execução externa exige capacidade + permissão + verificação</span></div>
 </section>
 <section class="lower">
  <div class="panel"><div class="panel-title"><b>Execution stream</b><span>live</span></div><div id="stream" class="stream"><div class="empty">As etapas do agente aparecerão aqui.</div></div></div>
- <div class="panel"><div class="panel-title"><b>System status</b><span id="systemState">healthy</span></div><div class="status-row"><span>AI gateway</span><b id="gateway">—</b></div><div class="status-row"><span>Skill registry</span><b>1,500</b></div><div class="status-row"><span>Verification</span><b>Enabled</b></div><div class="status-row"><span>Browser audit</span><b>Enabled</b></div></div>
+ <div class="panel"><div class="panel-title"><b>Runtime</b><span id="systemState">healthy</span></div><div id="runtimeTools"></div></div>
 </section>
+</section>
+
+<section id="page-skills" class="page">
+  <div class="toolbar"><div><b>Operational skills</b><small id="skillsSubtitle">1,500 registered capabilities</small></div><input id="skillSearch" placeholder="Buscar skill, categoria ou capacidade…"></div>
+  <div id="skillsGrid" class="skills-grid"><div class="empty">Carregando skills…</div></div>
+</section>
+
+<section id="page-browser" class="page">
+  <div class="toolbar"><div><b>Browser Monitor</b><small>Auditoria de ações e navegação do runtime</small></div><span id="browserStatus" class="badge">AUDIT READY</span></div>
+  <div class="browser-summary"><div><span>EVENTS</span><b id="browserTotal">0</b></div><div><span>LAST URL</span><b id="browserLastUrl">—</b></div><div><span>LAST ACTION</span><b id="browserLastAction">—</b></div></div>
+  <div class="panel table-panel"><div class="panel-title"><b>Event stream</b><span>polling</span></div><div id="browserTable"></div></div>
+</section>
+
+<section id="page-activity" class="page">
+  <div class="toolbar"><div><b>Activity</b><small>Missões, skills, browser e eventos do sistema</small></div><button id="refreshActivity" class="small-btn">Atualizar</button></div>
+  <div class="panel table-panel"><div class="panel-title"><b>Recent activity</b><span>latest 100</span></div><div id="activityTable"></div></div>
+</section>
+
 </section></main>
 <script src="/static/app.js"></script></body></html>
