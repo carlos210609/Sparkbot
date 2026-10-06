@@ -10,7 +10,7 @@ from pathlib import Path
 from sparkbot.ai import AIClient
 from sparkbot.agent import SparkAgent
 from sparkbot.agent_mesh import AgentMesh
-from sparkbot.cognitive import CognitiveEngine
+from sparkbot.cognitive import CognitiveEngine\nfrom sparkbot.kernel import SparkKernel\nfrom sparkbot.mission_control import MissionStore, MissionRunner
 from sparkbot.db import fetch_all, init_db
 
 ROOT = Path(__file__).resolve().parent
@@ -22,7 +22,7 @@ ai = AIClient()
 legacy_agent = SparkAgent()
 cognitive = CognitiveEngine()
 mesh = AgentMesh()
-init_db()
+init_db()\n\ndef run_background(request, emit):\n    emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))\n    result = cognitive.run(request, mode="DRY_RUN")\n    for event in result.get("events", []):\n        emit(event.get("type", "event"), event.get("message", "progress"), **{k:v for k,v in event.items() if k not in {"type","message"}})\n    return result\n\nmission_runner = MissionRunner(mission_store, run_background)
 
 SYSTEM = """You are SparkBot, a high-end autonomous operations intelligence.
 Speak naturally, clearly and use the user's language. Behave like a strong ChatGPT-style
@@ -45,7 +45,7 @@ def chat(messages: list[dict]) -> dict:
         response = ai.chat(clean)
         return {"reply": response.content, "provider": response.provider, "model": response.model,
                 "latency_ms": response.latency_ms, "ai_fallback": response.fallback,
-                "mission": None, "events": []}
+                "mission": None, "events": [], "kernel": kernel.inspect("")}
 
     mission = cognitive.run(user, mode="DRY_RUN")
     events = mission["events"]
@@ -103,7 +103,7 @@ class H(BaseHTTPRequestHandler):
             return self.send({"count": len(cognitive.registry.all())})
         if path == "/api/agents":
             return self.send(mesh.stats() | {"agents": [a.to_dict() for a in mesh.all()]})
-        if path == "/api/snapshot":
+        if path == "/api/missions":\n            return self.send({"missions": [mission_store.get(mid) for mid in list(mission_store._missions.keys())[-50:]]})\n        if path.startswith("/api/missions/") and path.endswith("/events"):\n            mission_id = path.split("/")[-2]\n            return self.send({"events": mission_store.events(mission_id)})\n        if path == "/api/snapshot":
             snap = legacy_agent.snapshot()
             return self.send({
                 "goals": snap["goals"], "tasks": snap["tasks"], "activity": snap["activity"],
@@ -143,7 +143,7 @@ class H(BaseHTTPRequestHandler):
             request = data.get("request", "")
             if not isinstance(request, str) or not request.strip():
                 return self.send({"error": "request is required"}, 400)
-            return self.send(cognitive.run(request, mode=str(data.get("mode", "DRY_RUN"))))
+            if bool(data.get("background", False)):\n                mid = mission_runner.submit(request)\n                return self.send({"mission_id": mid, "status": "QUEUED"})\n            return self.send(cognitive.run(request, mode=str(data.get("mode", "DRY_RUN"))))
         if path == "/api/browser/events":
             action = data.get("action")
             if not isinstance(action, str) or not action.strip():
