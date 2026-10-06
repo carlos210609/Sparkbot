@@ -51,3 +51,6 @@ The model is instructed to reason as an agent, but the runtime remains authorita
     ruff check .
 
 If GitHub Actions is enabled for the repository, the same checks run on push and pull request.
+
+
+Runtime validation is covered by the repository test suite and CI configuration.
