@@ -23,6 +23,9 @@ const pages={
  command:["COMMAND CENTER / LIVE","What should SparkBot do?","Converse with the agent, inspect its runtime and follow verified execution."],
  skills:["SKILLS / REGISTRY","Operational skills","Browse, search and inspect SparkBot's capability registry."],
  browser:["BROWSER / MONITOR","Browser Monitor","Audit browser navigation and actions without inventing execution."],
+ social:["SOCIAL / OPERATIONS","Social Operations","Open official platforms, prepare content and stage verified publications."],
+ approvals:["CONTROL / APPROVALS","Approval Center","Review external actions before they become public."],
+ learning:["INTELLIGENCE / LEARNING","Operational Learning","See what worked, what failed and what SparkBot is using to improve."],
  activity:["SYSTEM / ACTIVITY","Activity","Inspect the chronological operational audit trail."]
 };
 function showPage(name){
@@ -32,7 +35,7 @@ function showPage(name){
  const p=pages[name];$("pageEyebrow").textContent=p[0];$("pageTitle").textContent=p[1];$("pageDescription").textContent=p[2];
  if(name==="skills")loadSkills();
  if(name==="browser")loadBrowser();
- if(name==="activity")loadActivity();
+ if(name==="social")loadSocial(); if(name==="approvals")loadApprovals(); if(name==="learning")loadLearning(); if(name==="activity")loadActivity();
 }
 document.querySelectorAll(".nav").forEach(n=>n.onclick=()=>showPage(n.dataset.page));
 
@@ -94,4 +97,21 @@ async function loadActivity(){
 }
 $("refreshActivity").onclick=loadActivity;
 
-refresh();setInterval(refresh,5000);setInterval(()=>{if(currentPage==="browser")loadBrowser();if(currentPage==="activity")loadActivity();},4000);
+refresh();setInterval(refresh,5000);setInterval(()=>{if(currentPage==="browser")loadBrowser();if(currentPage==="approvals")loadApprovals();if(currentPage==="learning")loadLearning();if(currentPage==="activity")loadActivity();},4000);
+
+async function loadSocial(){
+ const d=await (await fetch("/api/social")).json();
+ $("socialPlatforms").innerHTML=(d.platforms||[]).map(p=>'<article class="skill-card"><div class="skill-top"><span>'+esc(p.id)+'</span><em class="risk LOW">READY</em></div><b>'+esc(p.name)+'</b><p>'+esc((p.capabilities||[]).join(" · "))+'</p><div class="skill-meta"><button class="small-btn" onclick="openSocial(\''+esc(p.id)+'\',\'home\')">Abrir</button><button class="small-btn" onclick="openSocial(\''+esc(p.id)+'\',\'signup\')">Cadastro</button></div></article>').join("");
+}
+async function openSocial(platform,purpose){ await fetch("/api/social/open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({platform,purpose})}); showPage("browser"); loadBrowser(); }
+async function loadApprovals(){
+ const d=await (await fetch("/api/approvals")).json(), rows=d.approvals||[];
+ const pending=rows.filter(r=>r.value?.status==="PENDING").length; $("approvalCount").textContent=pending;
+ $("approvalTable").innerHTML=rows.length?'<div class="table-head"><span>TIME</span><span>ACTION</span><span>REASON</span><span>STATUS</span></div>'+rows.map(r=>'<div class="table-row"><span>'+esc(r.created_at||"")+'</span><b>'+esc(r.value?.action||"")+'</b><span>'+esc(r.value?.reason||"")+'</span><em>'+esc(r.value?.status||"")+((r.value?.status==="PENDING")?'<br><button class="small-btn" onclick="approveAction(\''+esc(r.key)+'\')">Approve</button> <button class="small-btn" onclick="rejectAction(\''+esc(r.key)+'\')">Reject</button>':'')+'</em></div>').join(""):'<div class="empty">Nenhuma ação aguardando aprovação.</div>';
+}
+async function approveAction(id){await fetch("/api/approvals/approve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});loadApprovals();loadBrowser();}
+async function rejectAction(id){await fetch("/api/approvals/reject",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});loadApprovals();}
+async function loadLearning(){
+ const d=await (await fetch("/api/learning")).json(), rows=d.events||[];
+ $("learningTable").innerHTML=rows.length?'<div class="table-head"><span>TIME</span><span>SUBJECT</span><span>ACTION</span><span>RESULT</span></div>'+rows.map(r=>'<div class="table-row"><span>'+esc(r.created_at||"")+'</span><b>'+esc(r.key||"")+'</b><span>memory</span><em>'+esc(r.value?.score??"")+'</em></div>').join(""):'<div class="empty">Ainda não há eventos de aprendizagem.</div>';
+}
