@@ -386,6 +386,9 @@ class H(BaseHTTPRequestHandler):
             checks["agents"] = {"ok": mesh.stats()["total"] == 700, **mesh.stats()}
             checks["browser"] = browser.status()
             checks["runtime_tools"] = kernel.inspect("")["available_tools"]
+            from sparkbot.m16_m150 import MilestoneRegistry
+            milestone_count = len(MilestoneRegistry().all())
+            checks["milestones"] = {"ok": milestone_count == 135, "m16_m150": milestone_count}
             failed = [name for name, value in checks.items() if isinstance(value, dict) and value.get("ok") is False]
             return self.send({"status": "FAILED" if failed else "READY", "failed": failed, "checks": checks})
 
@@ -402,7 +405,15 @@ class H(BaseHTTPRequestHandler):
             return self.send(ai.status())
 
         if path == "/api/runtime":
-            return self.send(runtime_manifest(browser_available=browser.status()["installed"]))
+            return self.send(runtime_manifest(browser_available=browser.status()["available"]))
+        
+        if path == "/api/milestones":
+            from sparkbot.m16_m150 import MilestoneRegistry
+            rows = MilestoneRegistry().all()
+            return self.send({
+                "count": len(rows),
+                "milestones": [item.__dict__ for item in rows],
+            })
 
         if path == "/api/skills":
             skills = cognitive.registry.all()
