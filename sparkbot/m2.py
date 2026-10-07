@@ -201,16 +201,31 @@ class DurableOrchestrator:
             return RunState(run["status"]), json.loads(run["state_payload"] or "{}")
         return RunState(checkpoint["state"]), json.loads(checkpoint["payload"])
 
-    def run(self, task: DurableTask, run_id: str | None = None, max_tool_steps: int = 20) -> dict[str, Any]:
+    def run(
+        self,
+        task: DurableTask,
+        run_id: str | None = None,
+        max_tool_steps: int = 20,
+        max_replans: int = 3,
+    ) -> dict[str, Any]:
         rid = run_id or self.store.create(task.id)
         state, payload = self._state(rid)
+        payload = {**payload, "max_replans": max(0, max_replans)}
         if state in TERMINAL:
             return {"run_id": rid, "status": state.value, **payload}
 
-        if state in {RunState.RECEIVED, RunState.FAILED, RunState.PAUSED}:
+        if max_tool_steps < 1:
+            raise ValueError("max_tool_steps must be positive")
+
+        if state in {RunState.FAILED}:
             self.store.checkpoint(rid, RunState.RECEIVED, {"task": task.prompt, "task_id": task.id})
             state = RunState.RECEIVED
             payload = {"task": task.prompt, "task_id": task.id}
+
+        if state == RunState.PAUSED:
+            resume_state = RunState(payload.get("resume_state", RunState.RECEIVED.value))
+            payload = dict(payload.get("resume_payload", payload))
+            state = resume_state
 
         if state == RunState.RECEIVED:
             self._transition(rid, state, RunState.UNDERSTANDING, payload)
@@ -228,6 +243,9 @@ class DurableOrchestrator:
                 return {"run_id": rid, "status": RunState.FAILED.value, **payload}
 
         if state == RunState.BUDGET_EXCEEDED:
+            replans = int(payload.get("replans", 0))
+            if replans >= int(payload.get("max_replans", 3)):
+                return {"run_id": rid, "status": RunState.BUDGET_EXCEEDED.value, **payload}
             self._transition(rid, state, RunState.REPLANNING, payload)
             state = RunState.REPLANNING
 
@@ -312,5 +330,31 @@ class DurableOrchestrator:
         state, payload = self._state(run_id)
         if state in TERMINAL:
             return {"run_id": run_id, "status": state.value, **payload}
-        self.store.checkpoint(run_id, RunState.PAUSED, payload)
-        return {"run_id": run_id, "status": RunState.PAUSED.value, **payload}
+        paused = {
+            "resume_state": state.value,
+            "resume_payload": payload,
+            "paused": True,
+        }
+        self.store.checkpoint(run_id, RunState.PAUSED, paused)
+        return {"run_id": run_id, "status": RunState.PAUSED.value, **paused}
+
+    def resume(
+        self,
+        task: DurableTask,
+        run_id: str,
+        max_tool_steps: int = 20,
+        max_replans: int = 3,
+    ) -> dict[str, Any]:
+        return self.run(
+            task,
+            run_id=run_id,
+            max_tool_steps=max_tool_steps,
+            max_replans=max_replans,
+        )
+
+    def cancel(self, run_id: str) -> dict[str, Any]:
+        state, payload = self._state(run_id)
+        if state in TERMINAL:
+            return {"run_id": run_id, "status": state.value, **payload}
+        self.store.checkpoint(run_id, RunState.CANCELLED, {**payload, "cancelled": True})
+        return {"run_id": run_id, "status": RunState.CANCELLED.value, **payload, "cancelled": True}
