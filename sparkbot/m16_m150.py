@@ -852,8 +852,9 @@ MILESTONES = tuple(
 
 class MilestoneRegistry:
     def __init__(self, milestones: Iterable[Milestone] = MILESTONES) -> None:
-        self._items = {m.id: m for m in milestones}
-        if len(self._items) != len(tuple(milestones)) if not isinstance(milestones, tuple) else False:
+        rows = tuple(milestones)
+        self._items = {m.id: m for m in rows}
+        if len(self._items) != len(rows):
             raise ValueError("duplicate milestone ids")
 
     def get(self, milestone_id: int) -> Milestone:
