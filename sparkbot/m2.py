@@ -208,7 +208,17 @@ class DurableOrchestrator:
         max_tool_steps: int = 20,
         max_replans: int = 3,
     ) -> dict[str, Any]:
-        rid = run_id or self.store.create(task.id)
+        if max_tool_steps < 1:
+            raise ValueError("max_tool_steps must be positive")
+        if run_id:
+            existing = self.store.get(run_id)
+            if not existing:
+                raise KeyError(run_id)
+            if existing["task_id"] != task.id:
+                raise ValueError("run_id belongs to a different task")
+            rid = run_id
+        else:
+            rid = self.store.create(task.id)
         state, payload = self._state(rid)
         payload = {**payload, "max_replans": max(0, max_replans)}
         if state in TERMINAL:
@@ -328,33 +338,19 @@ class DurableOrchestrator:
 
     def pause(self, run_id: str) -> dict[str, Any]:
         state, payload = self._state(run_id)
-        if state in TERMINAL:
+        if state in TERMINAL or state == RunState.PAUSED:
             return {"run_id": run_id, "status": state.value, **payload}
-        paused = {
-            "resume_state": state.value,
-            "resume_payload": payload,
-            "paused": True,
-        }
-        self.store.checkpoint(run_id, RunState.PAUSED, paused)
-        return {"run_id": run_id, "status": RunState.PAUSED.value, **paused}
-
-    def resume(
-        self,
-        task: DurableTask,
-        run_id: str,
-        max_tool_steps: int = 20,
-        max_replans: int = 3,
-    ) -> dict[str, Any]:
-        return self.run(
-            task,
-            run_id=run_id,
-            max_tool_steps=max_tool_steps,
-            max_replans=max_replans,
-        )
+        self.store.checkpoint(run_id, RunState.PAUSED, {**payload, "paused_from": state.value})
+        return {"run_id": run_id, "status": RunState.PAUSED.value, **payload}
 
     def cancel(self, run_id: str) -> dict[str, Any]:
         state, payload = self._state(run_id)
         if state in TERMINAL:
             return {"run_id": run_id, "status": state.value, **payload}
-        self.store.checkpoint(run_id, RunState.CANCELLED, {**payload, "cancelled": True})
-        return {"run_id": run_id, "status": RunState.CANCELLED.value, **payload, "cancelled": True}
+        self.store.checkpoint(
+            run_id, RunState.CANCELLED, {**payload, "cancelled_from": state.value}
+        )
+        return {"run_id": run_id, "status": RunState.CANCELLED.value, **payload}
+
+    def resume(self, task: DurableTask, run_id: str, max_tool_steps: int = 20) -> dict[str, Any]:
+        return self.run(task, run_id=run_id, max_tool_steps=max_tool_steps)
