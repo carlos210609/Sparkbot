@@ -4,7 +4,6 @@ from time import perf_counter
 from typing import Any, Callable
 
 from evals.runner.result import EvaluationResult
-from evals.runner.scenario import Scenario
 
 
 @dataclass(frozen=True)
