@@ -143,3 +143,30 @@ def test_m2_cancel_is_terminal(tmp_path, monkeypatch):
 
     resumed = orchestrator.run(task, run_id=created)
     assert resumed["status"] == RunState.CANCELLED.value
+
+
+def test_m2_rejects_wrong_task_on_resume(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARKBOT_DB_PATH", str(tmp_path / "sparkbot.db"))
+    store = DurableRunStore()
+    run_id = store.create("original-task")
+    orch = DurableOrchestrator(
+        lambda task: ["x"],
+        lambda step, task, key: DurableToolResult(True, "ok", {"verified": True}),
+        store=store,
+    )
+    with pytest.raises(ValueError, match="different task"):
+        orch.run(DurableTask("other-task", "resume"), run_id=run_id)
+
+
+def test_m2_cancel_is_durable(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARKBOT_DB_PATH", str(tmp_path / "sparkbot.db"))
+    store = DurableRunStore()
+    run_id = store.create("cancel-task")
+    orch = DurableOrchestrator(
+        lambda task: ["x"],
+        lambda step, task, key: DurableToolResult(True, "ok", {"verified": True}),
+        store=store,
+    )
+    result = orch.cancel(run_id)
+    assert result["status"] == RunState.CANCELLED.value
+    assert store.get(run_id)["status"] == RunState.CANCELLED.value
