@@ -340,8 +340,13 @@ class DurableOrchestrator:
         state, payload = self._state(run_id)
         if state in TERMINAL or state == RunState.PAUSED:
             return {"run_id": run_id, "status": state.value, **payload}
-        self.store.checkpoint(run_id, RunState.PAUSED, {**payload, "paused_from": state.value})
-        return {"run_id": run_id, "status": RunState.PAUSED.value, **payload}
+        paused = {
+            "resume_state": state.value,
+            "resume_payload": payload,
+            "paused": True,
+        }
+        self.store.checkpoint(run_id, RunState.PAUSED, paused)
+        return {"run_id": run_id, "status": RunState.PAUSED.value, **paused}
 
     def cancel(self, run_id: str) -> dict[str, Any]:
         state, payload = self._state(run_id)
@@ -352,5 +357,16 @@ class DurableOrchestrator:
         )
         return {"run_id": run_id, "status": RunState.CANCELLED.value, **payload}
 
-    def resume(self, task: DurableTask, run_id: str, max_tool_steps: int = 20) -> dict[str, Any]:
-        return self.run(task, run_id=run_id, max_tool_steps=max_tool_steps)
+    def resume(
+        self,
+        task: DurableTask,
+        run_id: str,
+        max_tool_steps: int = 20,
+        max_replans: int = 3,
+    ) -> dict[str, Any]:
+        return self.run(
+            task,
+            run_id=run_id,
+            max_tool_steps=max_tool_steps,
+            max_replans=max_replans,
+        )
