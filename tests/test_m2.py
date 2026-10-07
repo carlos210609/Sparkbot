@@ -98,3 +98,50 @@ def test_m2_verification_blocks_unverified_results(tmp_path, monkeypatch):
 
     assert result["status"] == RunState.FAILED.value
     assert result["verification_error"] == "missing independent verification evidence"
+
+
+def test_m2_pause_resume_preserves_progress(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARKBOT_DB_PATH", str(tmp_path / "sparkbot.db"))
+    calls = []
+
+    def planner(task):
+        return ["a", "b"]
+
+    def tool(step, task, key):
+        calls.append(step)
+        return DurableToolResult(True, step, {"verified": True})
+
+    store = DurableRunStore()
+    orchestrator = DurableOrchestrator(planner, tool, store=store)
+    task = DurableTask("task-pause", "pause")
+
+    first = orchestrator.run(task, max_tool_steps=1)
+    assert first["status"] == RunState.BUDGET_EXCEEDED.value
+
+    paused = orchestrator.pause(first["run_id"])
+    assert paused["status"] == RunState.PAUSED.value
+
+    resumed = orchestrator.resume(task, paused["run_id"], max_tool_steps=5)
+    assert resumed["status"] == RunState.COMPLETED.value
+    assert calls == ["a", "b"]
+
+
+def test_m2_cancel_is_terminal(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARKBOT_DB_PATH", str(tmp_path / "sparkbot.db"))
+
+    def planner(task):
+        return ["a"]
+
+    def tool(step, task, key):
+        return DurableToolResult(True, "ok", {"verified": True})
+
+    store = DurableRunStore()
+    orchestrator = DurableOrchestrator(planner, tool, store=store)
+    task = DurableTask("task-cancel", "cancel")
+
+    created = store.create(task.id)
+    cancelled = orchestrator.cancel(created)
+    assert cancelled["status"] == RunState.CANCELLED.value
+
+    resumed = orchestrator.run(task, run_id=created)
+    assert resumed["status"] == RunState.CANCELLED.value
