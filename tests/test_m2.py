@@ -1,5 +1,3 @@
-import pytest
-
 from sparkbot.m2 import (
     DurableOrchestrator,
     DurableRunStore,
