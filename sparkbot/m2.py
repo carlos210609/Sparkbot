@@ -44,7 +44,13 @@ ALLOWED: dict[RunState, set[RunState]] = {
     RunState.UNDERSTANDING: {RunState.PLANNING, RunState.WAITING_USER, RunState.FAILED},
     RunState.PLANNING: {RunState.DECOMPOSING, RunState.REPLANNING, RunState.FAILED},
     RunState.DECOMPOSING: {RunState.EXECUTING, RunState.FAILED},
-    RunState.EXECUTING: {RunState.VERIFYING, RunState.WAITING_TOOL, RunState.FAILED, RunState.PAUSED},
+    RunState.EXECUTING: {
+        RunState.VERIFYING,
+        RunState.WAITING_TOOL,
+        RunState.FAILED,
+        RunState.PAUSED,
+        RunState.BUDGET_EXCEEDED,
+    },
     RunState.VERIFYING: {
         RunState.EXECUTING,
         RunState.REPLANNING,
