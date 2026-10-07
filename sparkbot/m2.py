@@ -44,18 +44,19 @@ ALLOWED: dict[RunState, set[RunState]] = {
     RunState.UNDERSTANDING: {RunState.PLANNING, RunState.WAITING_USER, RunState.FAILED},
     RunState.PLANNING: {RunState.DECOMPOSING, RunState.REPLANNING, RunState.FAILED},
     RunState.DECOMPOSING: {RunState.EXECUTING, RunState.FAILED},
-    RunState.EXECUTING: {RunState.VERIFYING, RunState.WAITING_TOOL, RunState.FAILED},
+    RunState.EXECUTING: {RunState.VERIFYING, RunState.WAITING_TOOL, RunState.FAILED, RunState.PAUSED},
     RunState.VERIFYING: {
         RunState.EXECUTING,
         RunState.REPLANNING,
         RunState.SYNTHESIZING,
         RunState.FAILED,
+        RunState.PAUSED,
     },
     RunState.REPLANNING: {RunState.PLANNING, RunState.FAILED, RunState.BUDGET_EXCEEDED},
-    RunState.SYNTHESIZING: {RunState.SELF_EVALUATING, RunState.FAILED},
-    RunState.SELF_EVALUATING: {RunState.DELIVERING, RunState.REPLANNING, RunState.FAILED},
-    RunState.DELIVERING: {RunState.LEARNING, RunState.FAILED},
-    RunState.LEARNING: {RunState.COMPLETED, RunState.FAILED},
+    RunState.SYNTHESIZING: {RunState.SELF_EVALUATING, RunState.FAILED, RunState.PAUSED},
+    RunState.SELF_EVALUATING: {RunState.DELIVERING, RunState.REPLANNING, RunState.FAILED, RunState.PAUSED},
+    RunState.DELIVERING: {RunState.LEARNING, RunState.FAILED, RunState.PAUSED},
+    RunState.LEARNING: {RunState.COMPLETED, RunState.FAILED, RunState.PAUSED},
     RunState.PAUSED: {
         RunState.RECEIVED,
         RunState.PLANNING,
@@ -211,20 +212,53 @@ class DurableOrchestrator:
             state = RunState.RECEIVED
             payload = {"task": task.prompt, "task_id": task.id}
 
-        self._transition(rid, state, RunState.UNDERSTANDING, payload)
-        payload = {**payload, "intent": task.prompt}
-        self._transition(rid, RunState.UNDERSTANDING, RunState.PLANNING, payload)
-        steps = self.planner(task)
+        if state == RunState.RECEIVED:
+            self._transition(rid, state, RunState.UNDERSTANDING, payload)
+            state = RunState.UNDERSTANDING
+            payload = {**payload, "intent": task.prompt}
+
+        if state == RunState.UNDERSTANDING:
+            self._transition(rid, state, RunState.PLANNING, payload)
+            state = RunState.PLANNING
+            try:
+                payload = {**payload, "steps": self.planner(task), "next_step": 0, "outputs": []}
+            except Exception as exc:
+                payload = {**payload, "error": f"{type(exc).__name__}: {exc}"}
+                self._transition(rid, state, RunState.FAILED, payload)
+                return {"run_id": rid, "status": RunState.FAILED.value, **payload}
+
+        if state == RunState.BUDGET_EXCEEDED:
+            self._transition(rid, state, RunState.REPLANNING, payload)
+            state = RunState.REPLANNING
+
+        if state == RunState.REPLANNING:
+            self._transition(rid, state, RunState.PLANNING, payload)
+            state = RunState.PLANNING
+            try:
+                payload = {**payload, "steps": self.planner(task), "next_step": 0, "replans": int(payload.get("replans", 0)) + 1}
+            except Exception as exc:
+                payload = {**payload, "error": f"{type(exc).__name__}: {exc}"}
+                self._transition(rid, state, RunState.FAILED, payload)
+                return {"run_id": rid, "status": RunState.FAILED.value, **payload}
+
+        steps = list(payload.get("steps", []))
         if not steps:
-            self._transition(rid, RunState.PLANNING, RunState.FAILED, {**payload, "error": "empty plan"})
+            self._transition(rid, state, RunState.FAILED, {**payload, "error": "empty plan"})
             return {"run_id": rid, "status": RunState.FAILED.value, "error": "empty plan"}
 
-        payload = {**payload, "steps": steps, "next_step": 0, "outputs": []}
-        self._transition(rid, RunState.PLANNING, RunState.DECOMPOSING, payload)
-        self._transition(rid, RunState.DECOMPOSING, RunState.EXECUTING, payload)
+        if state == RunState.PLANNING:
+            self._transition(rid, state, RunState.DECOMPOSING, payload)
+            state = RunState.DECOMPOSING
+        if state == RunState.DECOMPOSING:
+            self._transition(rid, state, RunState.EXECUTING, payload)
+            state = RunState.EXECUTING
+        if state == RunState.VERIFYING:
+            self._transition(rid, state, RunState.EXECUTING, payload)
+            state = RunState.EXECUTING
 
         outputs = list(payload.get("outputs", []))
-        for index in range(int(payload.get("next_step", 0)), len(steps)):
+        start_index = int(payload.get("next_step", 0))
+        for index in range(start_index, len(steps)):
             if index >= max_tool_steps:
                 data = {**payload, "next_step": index, "outputs": outputs, "error": "tool step budget exceeded"}
                 self._transition(rid, RunState.EXECUTING, RunState.BUDGET_EXCEEDED, data)
@@ -241,7 +275,12 @@ class DurableOrchestrator:
             self.store.checkpoint(rid, RunState.EXECUTING, current_payload)
             cached = self.store.effect_get(rid, key)
             if cached is None:
-                cached = self.tool(steps[index], task, key)
+                try:
+                    cached = self.tool(steps[index], task, key)
+                except Exception as exc:
+                    wait_payload = {**current_payload, "error": f"{type(exc).__name__}: {exc}"}
+                    self._transition(rid, RunState.EXECUTING, RunState.WAITING_TOOL, wait_payload)
+                    return {"run_id": rid, "status": RunState.WAITING_TOOL.value, **wait_payload}
                 self.store.effect_put(rid, key, cached)
 
             verify_payload = {**current_payload, "tool_ok": cached.ok, "tool_error": cached.error}
@@ -253,9 +292,8 @@ class DurableOrchestrator:
                 return {"run_id": rid, "status": RunState.FAILED.value, **data}
             outputs.append(cached.output)
             payload = {**current_payload, "outputs": outputs, "next_step": index + 1}
-            self._transition(rid, RunState.VERIFYING, RunState.EXECUTING, payload)
 
-        self._transition(rid, RunState.EXECUTING, RunState.SYNTHESIZING, payload)
+        self._transition(rid, RunState.VERIFYING if steps else RunState.EXECUTING, RunState.SYNTHESIZING, payload)
         payload = {**payload, "result": outputs}
         self._transition(rid, RunState.SYNTHESIZING, RunState.SELF_EVALUATING, payload)
         payload = {**payload, "self_evaluation": {"verified_outputs": len(outputs)}}
