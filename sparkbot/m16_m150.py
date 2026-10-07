@@ -194,7 +194,7 @@ class SecretRedactor:
     def redact(self, text: str) -> str:
         out = text
         for pattern in self.PATTERNS:
-            out = pattern.sub(lambda m: m.group(0).split(":", 1)[0] + ": [REDACTED]", out)
+            out = pattern.sub(lambda _match: "[REDACTED]", out)
         return out
 
 
