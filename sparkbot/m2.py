@@ -235,7 +235,13 @@ class DurableOrchestrator:
             self._transition(rid, state, RunState.PLANNING, payload)
             state = RunState.PLANNING
             try:
-                payload = {**payload, "steps": self.planner(task), "next_step": 0, "replans": int(payload.get("replans", 0)) + 1}
+                payload = {
+                    **payload,
+                    "steps": self.planner(task),
+                    "next_step": int(payload.get("next_step", 0)),
+                    "outputs": list(payload.get("outputs", [])),
+                    "replans": int(payload.get("replans", 0)) + 1,
+                }
             except Exception as exc:
                 payload = {**payload, "error": f"{type(exc).__name__}: {exc}"}
                 self._transition(rid, state, RunState.FAILED, payload)
