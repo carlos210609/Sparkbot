@@ -148,13 +148,31 @@ class PlanSearch:
 
 
 # M8 — browser/computer-use policy seam
+@dataclass(frozen=True)
+class ComputerUseDecision:
+    allowed: bool
+    manual_checkpoint: bool
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowed": self.allowed,
+            "manual_checkpoint": self.manual_checkpoint,
+            "reason": self.reason,
+        }
+
+
 class ComputerUseGuard:
     SECURITY_CHECKPOINTS = ("captcha", "otp", "2fa", "password", "recovery code")
-    def inspect(self, action: str, target: str = "") -> dict[str, Any]:
+
+    def inspect(self, action: str, target: str = "") -> ComputerUseDecision:
         text = f"{action} {target}".lower()
         manual = any(x in text for x in self.SECURITY_CHECKPOINTS)
-        return {"allowed": not manual, "manual_checkpoint": manual,
-                "reason": "security checkpoint requires user interaction" if manual else "allowed"}
+        return ComputerUseDecision(
+            not manual,
+            manual,
+            "security checkpoint requires user interaction" if manual else "allowed",
+        )
 
 
 # M9 — multi-agent blackboard
