@@ -69,7 +69,7 @@ ALLOWED: dict[RunState, set[RunState]] = {
         RunState.CANCELLED,
     },
     RunState.WAITING_USER: {RunState.RECEIVED, RunState.CANCELLED},
-    RunState.WAITING_TOOL: {RunState.RECEIVED, RunState.CANCELLED},
+    RunState.WAITING_TOOL: {RunState.RECEIVED, RunState.EXECUTING, RunState.CANCELLED},
     RunState.BUDGET_EXCEEDED: {RunState.REPLANNING, RunState.CANCELLED},
 }
 
@@ -252,7 +252,7 @@ class DurableOrchestrator:
         if state == RunState.DECOMPOSING:
             self._transition(rid, state, RunState.EXECUTING, payload)
             state = RunState.EXECUTING
-        if state == RunState.VERIFYING:
+        if state in {RunState.VERIFYING, RunState.WAITING_TOOL}:
             self._transition(rid, state, RunState.EXECUTING, payload)
             state = RunState.EXECUTING
 
