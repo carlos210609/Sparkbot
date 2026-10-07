@@ -100,6 +100,34 @@ CREATE TABLE IF NOT EXISTS memories (
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS orchestration_runs (
+ id TEXT PRIMARY KEY,
+ task_id TEXT NOT NULL,
+ status TEXT NOT NULL,
+ state_payload TEXT NOT NULL DEFAULT '{}',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS orchestration_checkpoints (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ run_id TEXT NOT NULL,
+ state TEXT NOT NULL,
+ checkpoint_index INTEGER NOT NULL,
+ payload TEXT NOT NULL DEFAULT '{}',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(run_id) REFERENCES orchestration_runs(id)
+);
+CREATE INDEX IF NOT EXISTS idx_orchestration_checkpoints_run
+ON orchestration_checkpoints(run_id, checkpoint_index);
+CREATE TABLE IF NOT EXISTS orchestration_effects (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ run_id TEXT NOT NULL,
+ idempotency_key TEXT NOT NULL,
+ output TEXT NOT NULL DEFAULT '{}',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(run_id, idempotency_key),
+ FOREIGN KEY(run_id) REFERENCES orchestration_runs(id)
+);
 """
 
 def connect() -> sqlite3.Connection:
