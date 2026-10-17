@@ -59,6 +59,11 @@ async function refresh(){
 }
 
 async function sendText(text){
+ if(/^\/goal(?:\s|$)/i.test(text.trim())){
+  const goal=text.trim().replace(/^\/goal\s*/i,"").trim();
+  if(!goal){addMessage("bot","Use /goal seguido do resultado que você quer alcançar.");return;}
+  return startGoal(goal);
+ }
  addMessage("user",text);history.push({role:"user",content:text});typing();$("send").disabled=true;
  try{
   const r=await (await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:history})})).json();
@@ -69,6 +74,74 @@ async function sendText(text){
  }catch(err){removeTyping();addMessage("bot","Não consegui concluir esta etapa: "+err.message);eventLine({type:"verification",text:"A execução foi interrompida."});}
  finally{$("send").disabled=false;input.focus();}
 }
+
+let activeGoalId=null, goalPollToken=0;
+const terminalGoalStates=new Set(["COMPLETED","FAILED","BLOCKED","PARTIAL","CANCELLED"]);
+function setGoalStatus(status,detail){
+ const panel=$("goalStatus"); if(!panel)return;
+ panel.hidden=false;
+ $("goalStatusState").textContent=status;
+ $("goalStatusDetail").textContent=detail||"O agente continuará trabalhando e verificando o resultado.";
+ $("stopGoal").disabled=!activeGoalId||terminalGoalStates.has(status);
+}
+async function startGoal(goal){
+ addMessage("user","/goal "+goal);
+ $("send").disabled=true;
+ setGoalStatus("QUEUED","Preparando uma execução persistente…");
+ $("stream").innerHTML="";
+ try{
+  const response=await fetch("/api/goal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({goal})});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||"Não foi possível iniciar a meta.");
+  activeGoalId=data.mission_id;
+  setGoalStatus(data.status||"QUEUED","Meta salva. Acompanhando execução…");
+  eventLine({type:"goal",message:"Meta persistente criada: "+activeGoalId});
+  await pollGoal(activeGoalId,++goalPollToken);
+ }catch(error){
+  setGoalStatus("FAILED",error.message);
+  addMessage("bot","Não consegui iniciar o /goal: "+error.message);
+ }finally{$("send").disabled=false;input.focus();}
+}
+async function pollGoal(id,token){
+ while(token===goalPollToken){
+  try{
+   const [missionResponse,eventResponse]=await Promise.all([
+    fetch("/api/missions/"+encodeURIComponent(id)),
+    fetch("/api/missions/"+encodeURIComponent(id)+"/events")
+   ]);
+   const missionData=await missionResponse.json(), eventData=await eventResponse.json();
+   const mission=Array.isArray(missionData.mission)?missionData.mission[0]:missionData.mission;
+   const status=String(mission?.status||"RUNNING").toUpperCase();
+   const events=eventData.events||[];
+   $("stream").innerHTML="";
+   events.slice(-35).reverse().forEach(e=>eventLine({type:e.type||e.event_type,message:e.message||e.event_type,...(e.metadata&&typeof e.metadata==="object"?e.metadata:{})}));
+   const latest=[...events].reverse().find(e=>e.message);
+   setGoalStatus(status,latest?.message||"O agente está executando a próxima etapa.");
+   if(terminalGoalStates.has(status)){
+    activeGoalId=null;
+    $("stopGoal").disabled=true;
+    const verified=status==="COMPLETED";
+    addMessage("bot",verified
+      ?"Meta concluída. O agente registrou uma linha de verificação. Consulte o Execution stream para acompanhar as etapas."
+      :"A execução terminou como "+status+". A meta não foi marcada como concluída; consulte o Execution stream para ver o bloqueio ou as etapas pendentes.");
+    return;
+   }
+  }catch(error){setGoalStatus("RUNNING","Conexão temporariamente indisponível; tentando consultar o progresso novamente…");}
+  await new Promise(resolve=>setTimeout(resolve,2200));
+ }
+}
+$("stopGoal")?.addEventListener("click",async()=>{
+ if(!activeGoalId)return;
+ const id=activeGoalId;
+ $("stopGoal").disabled=true;
+ try{
+  const r=await fetch("/api/goal/"+encodeURIComponent(id)+"/stop",{method:"POST"});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.error||"Não foi possível interromper.");
+  setGoalStatus("CANCELLED","Parada solicitada. O agente encerrará no próximo ponto seguro.");
+ }catch(error){$("stopGoal").disabled=false;setGoalStatus("RUNNING",error.message);}
+});
+
 form.onsubmit=e=>{e.preventDefault();const text=input.value.trim();if(!text)return;input.value="";input.style.height="auto";sendText(text);};
 input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
 input.addEventListener("input",()=>{input.style.height="auto";input.style.height=Math.min(input.scrollHeight,180)+"px";});
