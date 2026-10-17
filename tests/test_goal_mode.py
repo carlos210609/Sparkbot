@@ -31,7 +31,7 @@ def test_goal_never_marks_unverified_completion_as_done():
         "A goal that needs evidence",
         lambda *args, **kwargs: None,
         "mission-test-2",
-        lambda messages: turns.pop(0),
+        lambda messages: turns.pop(0) if turns else {"reply": "Still working.\\nGOAL_STATUS: CONTINUE", "events": []},
         lambda: False,
     )
     assert result["status"] == "PARTIAL"
