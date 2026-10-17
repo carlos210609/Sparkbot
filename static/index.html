@@ -39,6 +39,10 @@
 <section class="chat-shell">
   <div class="chat-head"><div><b>Agent chat</b><span> · SparkBot</span></div><div class="mode"><span class="pulse"></span> runtime aware</div></div>
   <div id="messages" class="messages"><div class="msg bot"><div class="avatar">S</div><div class="bubble"><b>Olá. Eu sou o SparkBot.</b><p>Eu opero como agente: entendo objetivos, seleciono agentes e skills, verifico permissões, executo ferramentas disponíveis e só declaro resultados com evidência.</p><div class="chips"><button data-prompt="Pesquise na web e encontre as 3 maiores oportunidades para meu produto.">Pesquisar na web</button><button data-prompt="Analise minha estratégia de marketing e encontre as 3 maiores oportunidades.">Encontrar oportunidades</button><button data-prompt="Monte um plano para crescer no Instagram de forma legítima.">Instagram</button></div></div></div></div>
+  <div id="goalStatus" class="goal-status" hidden aria-live="polite">
+    <div class="goal-status-copy"><span class="goal-status-label">AUTONOMOUS GOAL</span><b id="goalStatusState">QUEUED</b><small id="goalStatusDetail">A meta será executada até conclusão verificada ou bloqueio real.</small></div>
+    <button id="stopGoal" type="button" class="small-btn">Parar execução</button>
+  </div>
   <form id="chatForm" class="composer"><textarea id="input" rows="1" placeholder="Dê uma missão ao SparkBot…"></textarea><button id="send" type="submit"><span>Executar</span> ↑</button></form>
   <div class="composer-meta"><span>Enter envia · Shift+Enter quebra linha</span><span>Execução externa exige capacidade + permissão + verificação</span></div>
 </section>
