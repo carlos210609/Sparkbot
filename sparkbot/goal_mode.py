@@ -74,9 +74,10 @@ def run_goal(
         if isinstance(events, list):
             for event in events[-12:]:
                 if isinstance(event, dict):
+                    details = {k: v for k, v in event.items() if k not in {"type", "message"}}
+                    details["iteration"] = iteration
                     emit(str(event.get("type", "agent")), str(event.get("message", "Agent progress")),
-                         iteration=iteration,
-                         **{k: v for k, v in event.items() if k not in {"type", "message"}})
+                         **details)
         emit("progress", reply[-1800:], iteration=iteration)
 
         status_match = re.search(r"GOAL_STATUS\s*:\s*(CONTINUE|COMPLETE|BLOCKED)", reply, re.I)
