@@ -223,6 +223,21 @@ kernel.tools.register("social_prepare_post", execute_tool, risk="medium", permis
 kernel.tools.register("social_publish", execute_tool, risk="critical", permissions=("PUBLISH",))
 
 def run_background(request, emit, mission_id=None):
+    if request.strip().lower().startswith("/goal "):
+        from sparkbot.goal_mode import run_goal
+        goal = request.strip()[len("/goal "):].strip()
+        allowed, reason = validate_request(goal)
+        if not allowed:
+            emit("blocked", "Goal blocked by the safety policy.", reason=reason)
+            return {"mission_id": mission_id, "status": "BLOCKED", "verified": False, "error": reason}
+        emit("observe", "Kernel inspected the goal.", security=kernel.security.inspect(goal))
+        return run_goal(
+            goal=goal,
+            emit=emit,
+            mission_id=mission_id,
+            run_turn=chat,
+            should_stop=lambda: mission_store.get(mission_id).get("status") == "CANCELLED",
+        )
     emit("observe", "Kernel inspected the mission.", security=kernel.security.inspect(request))
     result = cognitive.run(request, mode="DRY_RUN", mission_id=mission_id)
     for event in result.get("events", []):
@@ -551,6 +566,27 @@ class H(BaseHTTPRequestHandler):
             if not isinstance(messages, list):
                 return self.send({"error": "messages must be a list"}, 400)
             return self.send(chat(messages))
+
+        if path == "/api/goal":
+            goal = data.get("goal", "")
+            if not isinstance(goal, str) or not goal.strip():
+                return self.send({"error": "goal is required"}, 400)
+            if len(goal) > 6000:
+                return self.send({"error": "goal must be 6000 characters or fewer"}, 413)
+            mission_id = mission_runner.submit("/goal " + goal.strip())
+            return self.send({"mission_id": mission_id, "status": "QUEUED", "goal": goal.strip()})
+
+        if path.startswith("/api/goal/") and path.endswith("/stop"):
+            mission_id = path.split("/")[-2]
+            mission = mission_store.get(mission_id)
+            if not mission:
+                return self.send({"error": "goal not found"}, 404)
+            if mission.get("status") in {"COMPLETED", "FAILED", "BLOCKED", "PARTIAL", "CANCELLED"}:
+                return self.send({"mission_id": mission_id, "status": mission.get("status"),
+                                  "message": "Goal is already terminal."}, 409)
+            mission_store.update(mission_id, status="CANCELLED")
+            mission_store.event(mission_id, "cancelled", "Stop requested by user.")
+            return self.send({"mission_id": mission_id, "status": "CANCELLED"})
 
         if path == "/api/mission":
             request = data.get("request", "")
