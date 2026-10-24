@@ -1,50 +1,62 @@
-name: Ralph Loop
+name: Ralph Loop Validation
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: Engineering task
+        description: Task being worked on by ChatGPT
         required: true
         type: string
-      cycles:
-        description: Maximum cycles
+      branch:
+        description: Ralph Loop branch to validate
         required: true
-        default: "1"
         type: string
 permissions:
   contents: read
 jobs:
-  ralph:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Restrict validation to Ralph Loop branches
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        run: |
+          case "$TARGET_BRANCH" in
+            ralph-loop/*) ;;
+            *) echo "Refusing to validate branch outside ralph-loop/*"; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
       - name: Install dependencies
         run: npm install
-      - name: Run Ralph Loop
-        env:
-          RALPH_TASK: ${{ inputs.task }}
-          RALPH_CYCLES: ${{ inputs.cycles }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          RALPH_MODEL: ${{ vars.RALPH_MODEL }}
-        run: node scripts/ralph.mjs
-      - name: Verify
-        run: |
-          npm test
-          npm run build
-      - name: Export proposed patch
+      - name: Run tests
+        run: npm test
+      - name: TypeScript build
+        run: npm run build
+      - name: Create validation report
         if: always()
+        shell: bash
+        env:
+          TASK: ${{ inputs.task }}
+          TARGET_BRANCH: ${{ inputs.branch }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          git add -N README.md src tests || true
-          git diff --binary > ralph.patch
+          {
+            echo "Ralph Loop validation report"
+            echo "Task: $TASK"
+            echo "Branch: $TARGET_BRANCH"
+            echo "Job outcome: $JOB_STATUS"
+            echo "Commit: $(git rev-parse HEAD)"
+          } > ralph-validation-report.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ralph-output
-          path: |
-            .ralph/progress.md
-            ralph.patch
+          name: ralph-validation-report
+          path: ralph-validation-report.txt
           if-no-files-found: warn

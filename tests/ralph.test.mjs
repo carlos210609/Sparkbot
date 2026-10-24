@@ -1,36 +1,44 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAbsolute, relative, resolve, sep } from "node:path";
 
-const root = resolve(".");
 const allowed = (filePath) => {
-  if (typeof filePath !== "string" || filePath.length === 0 || filePath.includes("\0")) return false;
+  if (typeof filePath !== "string" || filePath.length === 0 || filePath.length > 240 || filePath.includes("\0")) return false;
   const normalized = filePath.replaceAll("\\", "/");
-  if (normalized.startsWith("/") || normalized.split("/").some((part) => part === "." || part === "..")) return false;
-  const target = resolve(root, normalized);
-  const rel = relative(root, target).split(sep).join("/");
-  if (isAbsolute(rel) || rel === ".." || rel.startsWith("../")) return false;
-  return rel === "README.md" || rel.startsWith("src/") || rel.startsWith("tests/");
+  if (normalized.startsWith("/") || normalized.split("/").some((part) => part === "." || part === ".." || part === "")) return false;
+  return normalized === "README.md" ||
+    normalized === "package.json" ||
+    normalized === "package-lock.json" ||
+    normalized === "tsconfig.json" ||
+    normalized === "vercel.json" ||
+    normalized.startsWith("src/") ||
+    normalized.startsWith("tests/");
 };
 
-test("cycle count accepts only integers from one through three", () => {
-  for (const value of [1, 2, 3]) assert.ok(Number.isInteger(value) && value >= 1 && value <= 3);
-  for (const value of [0, 4, -1, NaN]) assert.ok(!(Number.isInteger(value) && value >= 1 && value <= 3));
+const validBranch = (branch) => {
+  const prefix = "ralph-loop/";
+  const suffix = typeof branch === "string" && branch.startsWith(prefix) ? branch.slice(prefix.length) : "";
+  return /^[a-z0-9-]{6,100}$/.test(suffix);
+};
+
+test("allowlist accepts source, tests, and intended project manifests", () => {
+  for (const path of ["src/server.ts", "tests/example.test.ts", "README.md", "package.json", "package-lock.json", "tsconfig.json", "vercel.json"]) {
+    assert.equal(allowed(path), true, path);
+  }
 });
 
-test("agent path policy permits intended files and rejects config edits", () => {
-  for (const path of ["src/server.ts", "tests/example.test.ts", "README.md"]) assert.equal(allowed(path), true);
-  for (const path of [".github/workflows/ralph-loop.yml", "package.json", ".env", "../.env"]) assert.equal(allowed(path), false);
+test("allowlist rejects workflows, secrets, and unrelated files", () => {
+  for (const path of [".github/workflows/ralph-loop.yml", ".env", ".env.example", "../.env", "src/../package.json", "src/../../.env", "/etc/passwd", "scripts/ralph.mjs"]) {
+    assert.equal(allowed(path), false, path);
+  }
 });
 
-test("agent path policy rejects traversal, absolute paths, and backslash traversal", () => {
-  for (const path of [
-    "src/../package.json",
-    "src/../../.env",
-    "tests/../.github/workflows/ralph-loop.yml",
-    "..\\.env",
-    "src\\..\\package.json",
-    "/etc/passwd",
-    "src/./server.ts"
-  ]) assert.equal(allowed(path), false, path);
+test("rejects traversal, empty segments and Windows traversal", () => {
+  for (const path of ["src/./server.ts", "src//server.ts", "..\\.env", "src\\..\\package.json", ""]) {
+    assert.equal(allowed(path), false, path);
+  }
+});
+
+test("validates dedicated Ralph Loop branches", () => {
+  for (const branch of ["ralph-loop/loop-123456-ab12cd34", "ralph-loop/fix-tests-001"]) assert.equal(validBranch(branch), true);
+  for (const branch of ["main", "feature/test", "ralph-loop/../main", "ralph-loop/ABC"]) assert.equal(validBranch(branch), false);
 });
