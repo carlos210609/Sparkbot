@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: false, limit: "32kb" }));
 const owner = process.env.GITHUB_OWNER ?? "carlos210609";
 const repo = process.env.GITHUB_REPO ?? "Sparkbot";
 const workflowId = process.env.GITHUB_WORKFLOW_ID ?? "sladegpt-validation.yml";
-const BASE_URL = (process.env.PUBLIC_BASE_URL ?? "https://sladegpt-mcp-independent.vercel.app").replace(/\/+$/, "");
+const BASE_URL = (process.env.PUBLIC_BASE_URL ?? "https://ralph-loop-mcp-independent.vercel.app").replace(/\/+$/, "");
 const RESOURCE_URL = BASE_URL + "/mcp";
 const SUPPORTED_SCOPES = ["sladegpt:read", "sladegpt:write", "offline_access"];
 const DEFAULT_SCOPE = SUPPORTED_SCOPES.join(" ");
@@ -93,7 +93,7 @@ function parseAuthorizationParams(input: Record<string, unknown>) {
   if (!state || state.length > 2048) throw new Error("A valid OAuth state parameter is required.");
   if (challengeMethod !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(challenge)) throw new Error("PKCE S256 code challenge is required.");
   if (resource !== RESOURCE_URL) throw new Error("The resource parameter does not match this MCP server.");
-  if (!requestedScope.includes("sladegpt:read") || !requestedScope.includes("sladegpt:write")) throw new Error("The connection must request both ralph:read and ralph:write.");
+  if (!requestedScope.includes("sladegpt:read") || !requestedScope.includes("sladegpt:write")) throw new Error("The connection must request both sladegpt:read and sladegpt:write.");
   if (requestedScope.some((scope) => !SUPPORTED_SCOPES.includes(scope))) throw new Error("Requested scope is not supported.");
   const clientScopes = (str(client.scope) || DEFAULT_SCOPE).split(/\s+/);
   if (requestedScope.some((scope) => !clientScopes.includes(scope))) throw new Error("Requested scope exceeds the registered client scope.");
