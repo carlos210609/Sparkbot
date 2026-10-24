@@ -15,7 +15,7 @@ const repo = process.env.GITHUB_REPO ?? "Sparkbot";
 const BASE_URL = (process.env.PUBLIC_BASE_URL ?? "https://ralph-loop-mcp-independent.vercel.app").replace(/\/+$/, "");
 const RESOURCE_URL = BASE_URL + "/mcp";
 const SUPPORTED_SCOPES = ["sladegpt:read", "sladegpt:write", "offline_access"];
-const DEFAULT_SCOPE = SUPPORTED_SCOPES.join(" ");
+const DEFAULT_SCOPE = ["sladegpt:read", "offline_access"].join(" ");
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 50_000;
 const MAX_TOTAL_BYTES = 250_000;
@@ -92,7 +92,7 @@ function parseAuthorizationParams(input: Record<string, unknown>) {
   if (!state || state.length > 2048) throw new Error("A valid OAuth state parameter is required.");
   if (challengeMethod !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(challenge)) throw new Error("PKCE S256 code challenge is required.");
   if (resource !== RESOURCE_URL) throw new Error("The resource parameter does not match this MCP server.");
-  if (!requestedScope.includes("sladegpt:read") || !requestedScope.includes("sladegpt:write")) throw new Error("The connection must request both sladegpt:read and sladegpt:write.");
+  if (!requestedScope.includes("sladegpt:read")) throw new Error("The connection must request sladegpt:read.");
   if (requestedScope.some((scope) => !SUPPORTED_SCOPES.includes(scope))) throw new Error("Requested scope is not supported.");
   const clientScopes = (str(client.scope) || DEFAULT_SCOPE).split(/\s+/);
   if (requestedScope.some((scope) => !clientScopes.includes(scope))) throw new Error("Requested scope exceeds the registered client scope.");
@@ -142,7 +142,7 @@ function authenticateAccessToken(req: Request, res: Response): Record<string, an
       return null;
     }
     const scopes = typeof payload.scope === "string" ? payload.scope.split(/\s+/) : [];
-    if (!scopes.includes("sladegpt:read") || !scopes.includes("sladegpt:write")) {
+    if (!scopes.includes("sladegpt:read")) {
       res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource", error="insufficient_scope", scope="sladegpt:read sladegpt:write"');
       res.status(403).json({ error: "insufficient_scope" });
       return null;
@@ -263,7 +263,7 @@ function createMcpServer() {
         content: z.string().max(MAX_FILE_BYTES)
       })).min(1).max(MAX_FILES).describe("Complete file contents authored by ChatGPT after inspecting the repository")
     },
-    annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: false, openWorldHint: false }
+    annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: true, openWorldHint: false }
   }, async ({ task, changes }) => {
     validateFiles(changes);
     const branch = "sladegpt/loop-" + Date.now() + "-" + randomUUID().slice(0, 8);
@@ -282,7 +282,7 @@ function createMcpServer() {
         content: z.string().max(MAX_FILE_BYTES)
       })).min(1).max(MAX_FILES)
     },
-    annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: false, openWorldHint: false }
+    annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: true, openWorldHint: false }
   }, async ({ branch, task, message, changes }) => {
     const validBranch = validateBranch(branch);
     const artifact = makePatchArtifact(task, validBranch, changes);
@@ -294,7 +294,7 @@ function createMcpServer() {
     title: "Get local test instructions",
     description: "Return commands for the user to run tests/build locally. Tokenless mode cannot dispatch GitHub Actions.",
     inputSchema: { branch: z.string().min(1).max(120), task: z.string().trim().min(8).max(2000) },
-    annotations: { readOnlyHint: false, openWorldHint: false }
+    annotations: { readOnlyHint: true, openWorldHint: false }
   }, async ({ branch, task }) => {
     const validBranch = validateBranch(branch);
     return { content: [{ type: "text", text: JSON.stringify({
@@ -337,7 +337,7 @@ function createMcpServer() {
     title: "Stop SladeGPT run",
     description: "Report that no remote run is managed by the tokenless MCP server.",
     inputSchema: { run_id: z.number().int().positive() },
-    annotations: { destructiveHint: false, idempotentHint: true, readOnlyHint: false, openWorldHint: false }
+    annotations: { destructiveHint: false, idempotentHint: true, readOnlyHint: true, openWorldHint: false }
   }, async ({ run_id }) => {
     return { content: [{ type: "text", text: JSON.stringify({
       accepted: false, run_id, status: "not_managed",
@@ -391,7 +391,7 @@ app.post("/oauth/register", (req, res) => {
     }
     const requestedScopes = typeof body.scope === "string" && body.scope.trim()
       ? body.scope.trim().split(/\s+/)
-      : SUPPORTED_SCOPES;
+      : ["sladegpt:read", "offline_access"];
     if (requestedScopes.some((scope: string) => !SUPPORTED_SCOPES.includes(scope))) {
       return authError(res, 400, "invalid_client_metadata", "Unsupported scope requested.");
     }
