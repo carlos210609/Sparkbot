@@ -14,7 +14,7 @@ const owner = process.env.GITHUB_OWNER ?? "carlos210609";
 const repo = process.env.GITHUB_REPO ?? "Sparkbot";
 const BASE_URL = (process.env.PUBLIC_BASE_URL ?? "https://ralph-loop-mcp-independent.vercel.app").replace(/\/+$/, "");
 const RESOURCE_URL = BASE_URL + "/mcp";
-const SUPPORTED_SCOPES = ["sladegpt:read", "sladegpt:write", "offline_access"];
+const SUPPORTED_SCOPES = ["sladegpt:read", "offline_access"];
 const DEFAULT_SCOPE = ["sladegpt:read", "offline_access"].join(" ");
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 50_000;
@@ -127,7 +127,7 @@ function safePasswordEqual(candidate: string, expected: string): boolean {
 }
 
 function bearerChallenge(req: Request, res: Response) {
-  res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource", scope="sladegpt:read sladegpt:write"');
+  res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource/mcp", scope="sladegpt:read"');
   return res.status(401).json({ error: "invalid_token", error_description: "Authenticate this MCP connection through OAuth." });
 }
 
@@ -143,7 +143,7 @@ function authenticateAccessToken(req: Request, res: Response): Record<string, an
     }
     const scopes = typeof payload.scope === "string" ? payload.scope.split(/\s+/) : [];
     if (!scopes.includes("sladegpt:read")) {
-      res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource", error="insufficient_scope", scope="sladegpt:read sladegpt:write"');
+      res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", scope="sladegpt:read"');
       res.status(403).json({ error: "insufficient_scope" });
       return null;
     }
@@ -350,6 +350,13 @@ function createMcpServer() {
 
 // OAuth 2.1 discovery and protected-resource metadata are required for a ChatGPT plugin connection.
 app.get("/.well-known/oauth-protected-resource", (_req, res) => res.json({
+  resource: BASE_URL,
+  authorization_servers: [BASE_URL],
+  scopes_supported: SUPPORTED_SCOPES,
+  bearer_methods_supported: ["header"]
+}));
+
+app.get("/.well-known/oauth-protected-resource/mcp", (_req, res) => res.json({
   resource: RESOURCE_URL,
   authorization_servers: [BASE_URL],
   scopes_supported: SUPPORTED_SCOPES,
