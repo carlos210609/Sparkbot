@@ -16,7 +16,8 @@ A single-owner MCP server that uses **ChatGPT itself as the reasoning and code-g
 
 - MCP endpoint: https://ralph-loop-mcp-independent.vercel.app/mcp
 - Health: /health
-- Protected Resource Metadata: /.well-known/oauth-protected-resource
+- Protected Resource Metadata for `/mcp`: `/.well-known/oauth-protected-resource/mcp`
+- Origin-level Protected Resource Metadata: `/.well-known/oauth-protected-resource`
 - OAuth Authorization Server Metadata: /.well-known/oauth-authorization-server
 - OAuth client registration: /oauth/register
 - OAuth authorization: /oauth/authorize
