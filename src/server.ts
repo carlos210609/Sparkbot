@@ -1,26 +1,33 @@
+import "dotenv/config";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { timingSafeEqual } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+
+const app = express();
+app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
 
 const owner = process.env.GITHUB_OWNER ?? "carlos210609";
 const repo = process.env.GITHUB_REPO ?? "Sparkbot";
 const workflowId = process.env.GITHUB_WORKFLOW_ID ?? "ralph-loop.yml";
 
-function authorized(req: IncomingMessage): boolean {
-  const configured = process.env.MCP_BEARER_TOKEN;
-  if (!configured) return false;
-  const authorization = req.headers.authorization ?? "";
-  const supplied = authorization.replace(/^Bearer\s+/i, "");
-  const left = Buffer.from(supplied);
-  const right = Buffer.from(configured);
-  return left.length === right.length && timingSafeEqual(left, right);
+function requireBearer(req: Request, res: Response, next: NextFunction) {
+  const expected = process.env.MCP_BEARER_TOKEN;
+  if (!expected) return res.status(503).json({ error: "MCP_BEARER_TOKEN is not configured" });
+  const supplied = (req.header("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const actualBuffer = Buffer.from(supplied);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
 }
 
 async function github(path: string, init: RequestInit = {}) {
   const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error("GITHUB_TOKEN is not configured on the MCP host. Add it as a protected environment variable.");
+  if (!token) throw new Error("GITHUB_TOKEN is not configured on the MCP host. Add a repository-scoped token as a protected environment variable.");
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
     ...init,
     headers: {
@@ -41,10 +48,10 @@ function createMcpServer() {
 
   server.registerTool("start_loop", {
     title: "Start Ralph Loop",
-    description: "Dispatch a bounded AI engineering run to GitHub Actions. The workflow creates a proposed patch artifact for manual review; it does not push, commit, or merge agent changes.",
+    description: "Dispatch a bounded AI engineering run to GitHub Actions. The workflow exports proposed changes as an artifact for manual review; it does not push, commit, or merge agent changes.",
     inputSchema: {
-      task: z.string().trim().min(8).max(2000).describe("Specific task with observable acceptance criteria"),
-      cycles: z.number().int().min(1).max(3).optional().describe("Maximum cycle count, 1 to 3")
+      task: z.string().trim().min(8).max(2000).describe("A specific engineering task with observable acceptance criteria"),
+      cycles: z.number().int().min(1).max(3).optional().describe("Maximum number of cycles, 1 to 3")
     },
     annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: false, openWorldHint: false }
   }, async ({ task, cycles }) => {
@@ -55,13 +62,14 @@ function createMcpServer() {
     });
     return { content: [{ type: "text", text: JSON.stringify({
       accepted: true, repository: `${owner}/${repo}`, workflow: workflowId,
-      task, cycles: selectedCycles, message: "Dispatch accepted. Use get_status after a few seconds."
+      task, cycles: selectedCycles,
+      message: "Dispatch accepted. Use get_status after a few seconds to inspect the run."
     }, null, 2) }] };
   });
 
   server.registerTool("get_status", {
     title: "Get Ralph Loop Status",
-    description: "List the latest GitHub Actions runs or inspect one run by ID.",
+    description: "List the latest GitHub Actions runs or inspect a specific run by ID.",
     inputSchema: { run_id: z.number().int().positive().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false }
   }, async ({ run_id }) => {
@@ -79,7 +87,7 @@ function createMcpServer() {
 
   server.registerTool("get_logs", {
     title: "Get Ralph Loop Logs",
-    description: "Show job and step outcomes for an Actions run, with a link to complete GitHub logs.",
+    description: "Show job and step outcomes for a run, with a link to complete GitHub logs.",
     inputSchema: { run_id: z.number().int().positive() },
     annotations: { readOnlyHint: true, openWorldHint: false }
   }, async ({ run_id }) => {
@@ -111,17 +119,25 @@ function createMcpServer() {
   return server;
 }
 
-export async function handleMcpRequest(
-  req: IncomingMessage & { body?: unknown },
-  res: ServerResponse
-): Promise<void> {
-  if (!authorized(req)) {
-    const missing = !process.env.MCP_BEARER_TOKEN;
-    res.statusCode = missing ? 503 : 401;
-    res.setHeader("content-type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ error: missing ? "MCP_BEARER_TOKEN is not configured" : "Unauthorized" }));
-    return;
+app.get("/", (_req, res) => res.json({
+  service: "Ralph Loop MCP",
+  description: "Independent MCP server for controlling bounded GitHub Actions Ralph Loop cycles.",
+  mcp_endpoint: "/mcp",
+  health_endpoint: "/health"
+}));
+
+app.get("/health", (_req, res) => res.json({
+  ok: true,
+  service: "ralph-loop-mcp",
+  repository: `${owner}/${repo}`,
+  configured: {
+    mcpBearerToken: Boolean(process.env.MCP_BEARER_TOKEN),
+    githubToken: Boolean(process.env.GITHUB_TOKEN),
+    workflowSecretRequired: "OPENROUTER_API_KEY must be configured in GitHub Actions"
   }
+}));
+
+app.all("/mcp", requireBearer, async (req, res) => {
   const server = createMcpServer();
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -130,13 +146,16 @@ export async function handleMcpRequest(
   res.on("close", () => { void transport.close(); void server.close(); });
   try {
     await server.connect(transport);
-    await transport.handleRequest(req as any, res as any, req.body as any);
+    await transport.handleRequest(req as any, res as any, req.body);
   } catch (error) {
     console.error("MCP request failed:", error);
-    if (!res.headersSent) {
-      res.statusCode = 500;
-      res.setHeader("content-type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: "MCP request failed" }));
-    }
+    if (!res.headersSent) res.status(500).json({ error: "MCP request failed" });
   }
-}
+});
+
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled request error:", error);
+  if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+});
+
+export default app;

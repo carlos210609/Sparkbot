@@ -5,20 +5,23 @@
   "type": "module",
   "description": "Independent MCP server for bounded Ralph Loop engineering cycles",
   "scripts": {
+    "dev": "vercel dev",
     "build": "tsc -p tsconfig.json",
     "test": "node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.13.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   }
 }
