@@ -112,8 +112,8 @@ function renderLogin(params: ReturnType<typeof parseAuthorizationParams>, errorT
   ].map(([key, value]) => '<input type="hidden" name="' + htmlEscape(key) + '" value="' + htmlEscape(value) + '">').join("");
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize SladeGPT MCP</title>' +
     '<style>body{font:16px system-ui,sans-serif;background:#101314;color:#f4f6f6;display:grid;place-items:center;min-height:100vh;margin:0}.card{width:min(430px,calc(100% - 40px));padding:28px;border:1px solid #333b3c;border-radius:16px;background:#191e1f}h1{font-size:22px;margin:0 0 8px}p{color:#bbc5c5;line-height:1.5}label{display:block;margin:20px 0 8px}input[type=password]{width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #475252;background:#101314;color:white}button{margin-top:18px;padding:12px 16px;border:0;border-radius:8px;background:#d9f99d;color:#172010;font-weight:700;width:100%}.error{color:#ffb4ab}</style></head><body><main class="card">' +
-    '<h1>Authorize SladeGPT MCP</h1><p>Sign in to let ChatGPT access your SladeGPT workspace. The service will use ChatGPT for code reasoning and GitHub Actions for tests; it does not call an external model API.</p>' +
-    '<p>Requested access: read repository files, create changes on SladeGPT branches, and run tests/builds.</p>' +
+    '<h1>Authorize SladeGPT MCP</h1><p>Sign in to let ChatGPT access your SladeGPT workspace. The service uses ChatGPT for code reasoning and returns proposed file changes without a GitHub token.</p>' +
+    '<p>Requested access: read public repository files and prepare patch artifacts for you to apply and test.</p>' +
     (errorText ? '<p class="error">' + htmlEscape(errorText) + '</p>' : "") +
     '<form method="post" action="/oauth/authorize">' + hidden +
     '<label for="password">MCP account password</label><input id="password" type="password" name="password" autocomplete="current-password" required maxlength="200">' +
