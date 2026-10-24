@@ -2,7 +2,21 @@
 
 A single-owner MCP server that uses **ChatGPT itself as the reasoning and code-generation model**. No OpenRouter account, external model API key, or GitHub personal access token is required.
 
-## Tokenless workflow
+## Mobile workspace (manual bridge)
+
+Open the mobile-first interface at https://ralph-loop-mcp-independent.vercel.app/mobile.html. It is designed for Android browsers and can be added to your home screen from Chrome's menu.
+
+The mobile app workaround is a manual bridge, not an MCP connection inside the ChatGPT Android app:
+
+1. Enter your task and select files from the public repository.
+2. Copy the generated prompt and paste it into a normal ChatGPT conversation.
+3. Ask ChatGPT to return the requested JSON artifact.
+4. Paste the JSON back into SladeGPT Mobile, validate it, and download the proposal.
+5. Review all changes and run the tests yourself before applying them.
+
+The browser reads only allowlisted public files from GitHub. The page itself does not use an external LLM API, request a GitHub token, or write changes to GitHub. The ChatGPT app's custom MCP integrations are web-only, and the exact available features depend on the account plan.
+
+## Tokenless MCP workflow
 
 1. ChatGPT reads allowlisted source files from the public repository.
 2. ChatGPT reasons about the task and authors complete file replacements.
@@ -10,7 +24,7 @@ A single-owner MCP server that uses **ChatGPT itself as the reasoning and code-g
 4. Apply those file replacements in your repository and run `npm test` and `npm run build` in your own checkout or CI.
 5. Ask ChatGPT to inspect failures and prepare another patch iteration.
 
-**Important limitation:** without GitHub credentials, this service cannot commit to GitHub, create branches, trigger GitHub Actions, or read private workflow logs. It does not claim that a patch has been committed or tested remotely.
+**Important limitation:** without GitHub credentials, the MCP service cannot commit to GitHub, create branches, trigger GitHub Actions, or read private workflow logs. It does not claim that a patch has been committed or tested remotely.
 
 ## MCP endpoints and OAuth
 
