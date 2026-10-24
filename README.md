@@ -34,7 +34,7 @@ The server implements a minimal OAuth 2.1 authorization-code flow with PKCE S256
 - `get_logs(run_id)` — provides local validation commands
 - `stop_loop(run_id)` — reports that no remote run is managed
 
-File reads/writes are limited to source/tests and common project manifests. Workflow/security files and secret files cannot be changed through these tools.
+Repository reads and proposed file replacements are limited to source/tests and common project manifests. Workflow/security files and secret files cannot be changed through these tools.
 
 ## Vercel environment variables
 
