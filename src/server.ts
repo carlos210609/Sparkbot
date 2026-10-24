@@ -12,7 +12,6 @@ app.use(express.urlencoded({ extended: false, limit: "32kb" }));
 
 const owner = process.env.GITHUB_OWNER ?? "carlos210609";
 const repo = process.env.GITHUB_REPO ?? "Sparkbot";
-const workflowId = process.env.GITHUB_WORKFLOW_ID ?? "sladegpt-validation.yml";
 const BASE_URL = (process.env.PUBLIC_BASE_URL ?? "https://ralph-loop-mcp-independent.vercel.app").replace(/\/+$/, "");
 const RESOURCE_URL = BASE_URL + "/mcp";
 const SUPPORTED_SCOPES = ["sladegpt:read", "sladegpt:write", "offline_access"];
@@ -156,21 +155,17 @@ function authenticateAccessToken(req: Request, res: Response): Record<string, an
 }
 
 async function github(path: string, init: RequestInit = {}) {
-  const token = process.env.GITHUB_TOKEN;
   const method = (init.method ?? "GET").toUpperCase();
-  if (!token && method !== "GET") {
-    throw new Error("GITHUB_TOKEN is required for repository writes and GitHub Actions dispatch. Set a fine-grained token in Vercel with Contents read/write and Actions read/write permissions. Public repository reads can work without it.");
+  if (method !== "GET") {
+    throw new Error("Tokenless mode is read-only for GitHub. SladeGPT returns patch artifacts instead of writing to the repository.");
   }
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "Content-Type": "application/json",
-    ...(init.headers as Record<string, string> | undefined)
-  };
-  if (token) headers.Authorization = "Bearer " + token;
   const response = await fetch("https://api.github.com/repos/" + owner + "/" + repo + path, {
     ...init,
-    headers
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(init.headers as Record<string, string> | undefined)
+    }
   });
   const body = await response.text();
   if (!response.ok) throw new Error("GitHub API " + response.status + ": " + body.slice(0, 800));
@@ -215,50 +210,22 @@ function validateBranch(branch: string): string {
   return branch;
 }
 
-function refPath(branch: string) {
-  return branch.split("/").map((part) => encodeURIComponent(part)).join("/");
-}
-
-async function branchHead(branch: string): Promise<string> {
-  const ref = await github("/git/ref/heads/" + refPath(branch));
-  return ref.object.sha as string;
-}
-
-async function commitFiles(branch: string, files: Array<{ path: string; content: string }>, message: string, createBranch: boolean) {
+function makePatchArtifact(task: string, branch: string, files: Array<{ path: string; content: string }>) {
   validateFiles(files);
-  const parentSha = createBranch
-    ? (await github("/git/ref/heads/main")).object.sha as string
-    : await branchHead(branch);
-  const parent = await github("/git/commits/" + parentSha);
-  const baseTreeSha = parent.tree.sha as string;
-  const blobs = await Promise.all(files.map(async (file) => {
-    const blob = await github("/git/blobs", {
-      method: "POST",
-      body: JSON.stringify({ content: file.content, encoding: "utf-8" })
-    });
-    return { path: file.path, mode: "100644", type: "blob", sha: blob.sha as string };
-  }));
-  const tree = await github("/git/trees", {
-    method: "POST",
-    body: JSON.stringify({ base_tree: baseTreeSha, tree: blobs })
-  });
-  const commit = await github("/git/commits", {
-    method: "POST",
-    body: JSON.stringify({ message: message.slice(0, 200), tree: tree.sha, parents: [parentSha] })
-  });
-  if (createBranch) {
-    await github("/git/refs", { method: "POST", body: JSON.stringify({ ref: "refs/heads/" + branch, sha: commit.sha }) });
-  } else {
-    await github("/git/refs/heads/" + refPath(branch), { method: "PATCH", body: JSON.stringify({ sha: commit.sha, force: false }) });
-  }
-  return { branch, commit: commit.sha as string, filesChanged: files.length };
-}
-
-async function dispatchValidation(branch: string, task: string) {
-  await github("/actions/workflows/" + encodeURIComponent(workflowId) + "/dispatches", {
-    method: "POST",
-    body: JSON.stringify({ ref: branch, inputs: { task, branch } })
-  });
+  return {
+    accepted: true,
+    mode: "tokenless-patch-artifact",
+    task,
+    suggestedBranch: branch,
+    filesChanged: files.length,
+    files: files.map((file) => ({ path: file.path, content: file.content })),
+    instructions: [
+      "No GitHub token is used or required by this server.",
+      "These are proposed complete file replacements; they have not been committed to GitHub.",
+      "Apply the returned files in your repository, then run npm test and npm run build.",
+      "This service cannot dispatch GitHub Actions or read private workflow logs in tokenless mode."
+    ]
+  };
 }
 
 function createMcpServer() {
@@ -287,8 +254,8 @@ function createMcpServer() {
   });
 
   server.registerTool("start_loop", {
-    title: "Start SladeGPT",
-    description: "Start a ChatGPT-driven coding loop without OpenRouter or an external model API. Read relevant files, reason and create the changes in ChatGPT, then call this tool with complete file contents. It creates a separate sladegpt/* branch and dispatches GitHub Actions tests/build. Inspect status/logs and continue with apply_changes until acceptance criteria pass.",
+    title: "Prepare SladeGPT changes",
+    description: "Prepare a tokenless patch artifact from complete file contents authored by ChatGPT. This server does not write to GitHub or dispatch workflows; apply the returned file replacements yourself and run tests/build locally.",
     inputSchema: {
       task: z.string().trim().min(8).max(2000).describe("Task and observable acceptance criteria"),
       changes: z.array(z.object({
@@ -300,18 +267,12 @@ function createMcpServer() {
   }, async ({ task, changes }) => {
     validateFiles(changes);
     const branch = "sladegpt/loop-" + Date.now() + "-" + randomUUID().slice(0, 8);
-    const committed = await commitFiles(branch, changes, "SladeGPT: " + task, true);
-    await dispatchValidation(branch, task);
-    return { content: [{ type: "text", text: JSON.stringify({
-      accepted: true, mode: "ChatGPT is the reasoning model; no external LLM/API key is used",
-      task, ...committed, validation: "dispatched",
-      next: "Call get_status with this branch; if checks fail, read files and logs, then use apply_changes for the next ChatGPT-authored iteration."
-    }, null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify(makePatchArtifact(task, branch, changes), null, 2) }] };
   });
 
   server.registerTool("apply_changes", {
-    title: "Apply next SladeGPT iteration",
-    description: "Commit the next set of ChatGPT-authored changes to an existing sladegpt/* branch and run tests/build again. Use after reading files and inspecting the previous run's logs. No external model generates code.",
+    title: "Prepare next SladeGPT patch",
+    description: "Prepare another tokenless patch artifact from ChatGPT-authored file replacements. It does not commit to GitHub or run remote tests.",
     inputSchema: {
       branch: z.string().min(1).max(120),
       task: z.string().trim().min(8).max(2000),
@@ -324,73 +285,64 @@ function createMcpServer() {
     annotations: { destructiveHint: false, idempotentHint: false, readOnlyHint: false, openWorldHint: false }
   }, async ({ branch, task, message, changes }) => {
     const validBranch = validateBranch(branch);
-    validateFiles(changes);
-    const committed = await commitFiles(validBranch, changes, message || "SladeGPT iteration: " + task, false);
-    await dispatchValidation(validBranch, task);
-    return { content: [{ type: "text", text: JSON.stringify({
-      accepted: true, mode: "ChatGPT-driven; no external LLM/API key used",
-      task, ...committed, validation: "dispatched",
-      next: "Call get_status, inspect validation results, and iterate again if needed."
-    }, null, 2) }] };
+    const artifact = makePatchArtifact(task, validBranch, changes);
+    artifact.instructions.push("Iteration message: " + (message || "SladeGPT iteration: " + task));
+    return { content: [{ type: "text", text: JSON.stringify(artifact, null, 2) }] };
   });
 
   server.registerTool("run_checks", {
-    title: "Run tests and build",
-    description: "Run repository tests and the TypeScript build on an existing SladeGPT branch. No model API is called.",
+    title: "Get local test instructions",
+    description: "Return commands for the user to run tests/build locally. Tokenless mode cannot dispatch GitHub Actions.",
     inputSchema: { branch: z.string().min(1).max(120), task: z.string().trim().min(8).max(2000) },
     annotations: { readOnlyHint: false, openWorldHint: false }
   }, async ({ branch, task }) => {
     const validBranch = validateBranch(branch);
-    await dispatchValidation(validBranch, task);
-    return { content: [{ type: "text", text: JSON.stringify({ accepted: true, branch: validBranch, validation: "dispatched" }, null, 2) }] };
+    return { content: [{ type: "text", text: JSON.stringify({
+      accepted: true, branch: validBranch, task, validation: "not_run",
+      commands: ["npm ci", "npm test", "npm run build"],
+      note: "No GitHub token is required, but tests must be run in your own checkout or CI. This MCP server cannot execute repository code remotely."
+    }, null, 2) }] };
   });
 
   server.registerTool("get_status", {
-    title: "Get SladeGPT status",
-    description: "Read GitHub Actions statuses for recent SladeGPT validations, optionally filtered by branch or run ID.",
+    title: "Get SladeGPT patch status",
+    description: "Explain tokenless mode status. This server does not start or inspect GitHub Actions runs.",
     inputSchema: { run_id: z.number().int().positive().optional(), branch: z.string().optional() },
     annotations: { readOnlyHint: true, openWorldHint: false }
   }, async ({ run_id, branch }) => {
-    const result = run_id
-      ? await github("/actions/runs/" + run_id)
-      : await github("/actions/workflows/" + encodeURIComponent(workflowId) + "/runs?per_page=5" +
-          (branch ? "&branch=" + encodeURIComponent(validateBranch(branch)) : ""));
-    const simplify = (run: any) => ({
-      id: run.id, name: run.name, title: run.display_title, status: run.status,
-      conclusion: run.conclusion, branch: run.head_branch, created_at: run.created_at,
-      updated_at: run.updated_at, html_url: run.html_url
-    });
-    const value = Array.isArray(result.workflow_runs) ? result.workflow_runs.map(simplify) : simplify(result);
-    return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] };
+    if (branch) validateBranch(branch);
+    return { content: [{ type: "text", text: JSON.stringify({
+      mode: "tokenless-patch-artifact",
+      status: "No remote run was started by this server.",
+      runIdProvided: Boolean(run_id),
+      branch: branch || null,
+      next: "Apply the patch artifact to a checkout and run npm test and npm run build."
+    }, null, 2) }] };
   });
 
   server.registerTool("get_logs", {
-    title: "Get SladeGPT logs",
-    description: "Read job and step outcomes for a GitHub Actions run; use the results to decide the next ChatGPT-authored fix.",
+    title: "Get test instructions",
+    description: "Remote workflow logs are unavailable in tokenless mode; returns the local commands needed to validate the patch.",
     inputSchema: { run_id: z.number().int().positive() },
     annotations: { readOnlyHint: true, openWorldHint: false }
   }, async ({ run_id }) => {
-    const [run, jobs] = await Promise.all([
-      github("/actions/runs/" + run_id),
-      github("/actions/runs/" + run_id + "/jobs?per_page=50")
-    ]);
     return { content: [{ type: "text", text: JSON.stringify({
-      run: { id: run.id, status: run.status, conclusion: run.conclusion, html_url: run.html_url },
-      jobs: (jobs.jobs ?? []).map((job: any) => ({
-        name: job.name, status: job.status, conclusion: job.conclusion,
-        steps: (job.steps ?? []).map((step: any) => ({ name: step.name, status: step.status, conclusion: step.conclusion }))
-      }))
+      run_id, available: false,
+      reason: "No remote GitHub Actions run is started or inspected in tokenless mode.",
+      commands: ["npm test", "npm run build"]
     }, null, 2) }] };
   });
 
   server.registerTool("stop_loop", {
     title: "Stop SladeGPT run",
-    description: "Cancel a currently running GitHub Actions validation by its numeric run ID.",
+    description: "Report that no remote run is managed by the tokenless MCP server.",
     inputSchema: { run_id: z.number().int().positive() },
     annotations: { destructiveHint: false, idempotentHint: true, readOnlyHint: false, openWorldHint: false }
   }, async ({ run_id }) => {
-    await github("/actions/runs/" + run_id + "/cancel", { method: "POST" });
-    return { content: [{ type: "text", text: JSON.stringify({ accepted: true, run_id, status: "cancellation_requested" }) }] };
+    return { content: [{ type: "text", text: JSON.stringify({
+      accepted: false, run_id, status: "not_managed",
+      note: "Tokenless mode does not create remote runs, so there is nothing to cancel."
+    }) }] };
   });
 
   return server;
@@ -563,7 +515,7 @@ app.post("/oauth/token", (req, res) => {
 
 app.get("/", (_req, res) => res.json({
   service: "SladeGPT MCP",
-  description: "ChatGPT-driven coding loop using GitHub for versioned iterations and tests. No external LLM API key.",
+  description: "ChatGPT-driven coding helper that returns patch artifacts without a GitHub token or external model API.",
   mcp_endpoint: "/mcp",
   health_endpoint: "/health",
   oauth_metadata: "/.well-known/oauth-authorization-server"
@@ -576,9 +528,9 @@ app.get("/health", (_req, res) => res.json({
   configured: {
     oauthSigningSecret: Boolean(process.env.OAUTH_SIGNING_SECRET && process.env.OAUTH_SIGNING_SECRET.length >= 32),
     mcpUserPassword: Boolean(process.env.MCP_USER_PASSWORD),
-    githubToken: Boolean(process.env.GITHUB_TOKEN),
+    githubTokenRequired: false,
     externalModelApiKeyRequired: false,
-    executionMode: "ChatGPT generates changes; GitHub Actions runs tests/build"
+    executionMode: "ChatGPT generates changes; MCP returns patch artifacts; user runs tests/build"
   }
 }));
 
