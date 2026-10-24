@@ -47,7 +47,7 @@ function createServer() {
 
   server.registerTool("start_loop", {
     title: "Start Ralph Loop",
-    description: "Dispatch a bounded AI engineering run to GitHub Actions. The workflow works on a separate branch and opens a draft pull request; it never merges automatically.",
+    description: "Dispatch a bounded AI engineering run to GitHub Actions. The workflow exports proposed changes as an artifact for manual review; it does not push or merge code.",
     inputSchema: {
       task: z.string().trim().min(8).max(2000),
       cycles: z.number().int().min(1).max(3).optional()
