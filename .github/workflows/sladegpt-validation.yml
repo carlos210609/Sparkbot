@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       branch:
-        description: Ralph Loop branch to validate
+        description: SladeGPT branch to validate
         required: true
         type: string
 permissions:
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Restrict validation to Ralph Loop branches
+      - name: Restrict validation to SladeGPT branches
         shell: bash
         env:
           TARGET_BRANCH: ${{ inputs.branch }}
@@ -52,10 +52,10 @@ jobs:
             echo "Branch: $TARGET_BRANCH"
             echo "Job outcome: $JOB_STATUS"
             echo "Commit: $(git rev-parse HEAD)"
-          } > ralph-validation-report.txt
+          } > sladegpt-validation-report.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ralph-validation-report
-          path: ralph-validation-report.txt
+          name: sladegpt-validation-report
+          path: sladegpt-validation-report.txt
           if-no-files-found: warn

@@ -27,7 +27,7 @@ test("allowlist accepts source, tests, and intended project manifests", () => {
 });
 
 test("allowlist rejects workflows, secrets, and unrelated files", () => {
-  for (const path of [".github/workflows/sladegpt.yml", ".env", ".env.example", "../.env", "src/../package.json", "src/../../.env", "/etc/passwd", "scripts/ralph.mjs"]) {
+  for (const path of [".github/workflows/sladegpt-validation.yml", ".env", ".env.example", "../.env", "src/../package.json", "src/../../.env", "/etc/passwd", "scripts/ralph.mjs"]) {
     assert.equal(allowed(path), false, path);
   }
 });
@@ -38,7 +38,7 @@ test("rejects traversal, empty segments and Windows traversal", () => {
   }
 });
 
-test("validates dedicated Ralph Loop branches", () => {
+test("validates dedicated SladeGPT branches", () => {
   for (const branch of ["sladegpt/loop-123456-ab12cd34", "sladegpt/fix-tests-001"]) assert.equal(validBranch(branch), true);
   for (const branch of ["main", "feature/test", "sladegpt/../main", "sladegpt/ABC"]) assert.equal(validBranch(branch), false);
 });

@@ -50,7 +50,7 @@ Optional variables:
 
 - GITHUB_OWNER (default: carlos210609)
 - GITHUB_REPO (default: Sparkbot)
-- GITHUB_WORKFLOW_ID (default: ralph-loop.yml)
+- GITHUB_WORKFLOW_ID (default: sladegpt-validation.yml)
 
 No OPENROUTER_API_KEY or external model key is needed.
 

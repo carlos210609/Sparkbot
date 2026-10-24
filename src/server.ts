@@ -93,7 +93,7 @@ function parseAuthorizationParams(input: Record<string, unknown>) {
   if (!state || state.length > 2048) throw new Error("A valid OAuth state parameter is required.");
   if (challengeMethod !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(challenge)) throw new Error("PKCE S256 code challenge is required.");
   if (resource !== RESOURCE_URL) throw new Error("The resource parameter does not match this MCP server.");
-  if (!requestedScope.includes("ralph:read") || !requestedScope.includes("ralph:write")) throw new Error("The connection must request both ralph:read and ralph:write.");
+  if (!requestedScope.includes("sladegpt:read") || !requestedScope.includes("sladegpt:write")) throw new Error("The connection must request both ralph:read and ralph:write.");
   if (requestedScope.some((scope) => !SUPPORTED_SCOPES.includes(scope))) throw new Error("Requested scope is not supported.");
   const clientScopes = (str(client.scope) || DEFAULT_SCOPE).split(/\s+/);
   if (requestedScope.some((scope) => !clientScopes.includes(scope))) throw new Error("Requested scope exceeds the registered client scope.");
@@ -143,7 +143,7 @@ function authenticateAccessToken(req: Request, res: Response): Record<string, an
       return null;
     }
     const scopes = typeof payload.scope === "string" ? payload.scope.split(/\s+/) : [];
-    if (!scopes.includes("ralph:read") || !scopes.includes("ralph:write")) {
+    if (!scopes.includes("sladegpt:read") || !scopes.includes("sladegpt:write")) {
       res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource", error="insufficient_scope", scope="sladegpt:read sladegpt:write"');
       res.status(403).json({ error: "insufficient_scope" });
       return null;
@@ -505,7 +505,7 @@ app.post("/oauth/authorize", (req, res) => {
 function makeAccessToken(clientId: string, scope: string, resource: string) {
   const now = Math.floor(Date.now() / 1000);
   return signPayload({
-    kind: "access_token", sub: "ralph-loop-owner", client_id: clientId, aud: resource,
+    kind: "access_token", sub: "sladegpt-owner", client_id: clientId, aud: resource,
     scope, iat: now, exp: now + 3600, jti: randomUUID()
   });
 }
@@ -513,7 +513,7 @@ function makeAccessToken(clientId: string, scope: string, resource: string) {
 function makeRefreshToken(clientId: string, scope: string, resource: string) {
   const now = Math.floor(Date.now() / 1000);
   return signPayload({
-    kind: "refresh_token", sub: "ralph-loop-owner", client_id: clientId, aud: resource,
+    kind: "refresh_token", sub: "sladegpt-owner", client_id: clientId, aud: resource,
     scope, iat: now, exp: now + 30 * 24 * 3600, jti: randomUUID()
   });
 }

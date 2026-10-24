@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "ChatGPT-driven Ralph Loop MCP server; no external LLM API required",
+  "description": "ChatGPT-driven SladeGPT MCP server; no external LLM API required",
   "scripts": {
     "dev": "vercel dev",
     "build": "tsc -p tsconfig.json",
