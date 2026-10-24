@@ -15,7 +15,7 @@ const allowed = (filePath) => {
 };
 
 const validBranch = (branch) => {
-  const prefix = "ralph-loop/";
+  const prefix = "sladegpt/";
   const suffix = typeof branch === "string" && branch.startsWith(prefix) ? branch.slice(prefix.length) : "";
   return /^[a-z0-9-]{6,100}$/.test(suffix);
 };
@@ -27,7 +27,7 @@ test("allowlist accepts source, tests, and intended project manifests", () => {
 });
 
 test("allowlist rejects workflows, secrets, and unrelated files", () => {
-  for (const path of [".github/workflows/ralph-loop.yml", ".env", ".env.example", "../.env", "src/../package.json", "src/../../.env", "/etc/passwd", "scripts/ralph.mjs"]) {
+  for (const path of [".github/workflows/sladegpt.yml", ".env", ".env.example", "../.env", "src/../package.json", "src/../../.env", "/etc/passwd", "scripts/ralph.mjs"]) {
     assert.equal(allowed(path), false, path);
   }
 });
@@ -39,6 +39,6 @@ test("rejects traversal, empty segments and Windows traversal", () => {
 });
 
 test("validates dedicated Ralph Loop branches", () => {
-  for (const branch of ["ralph-loop/loop-123456-ab12cd34", "ralph-loop/fix-tests-001"]) assert.equal(validBranch(branch), true);
-  for (const branch of ["main", "feature/test", "ralph-loop/../main", "ralph-loop/ABC"]) assert.equal(validBranch(branch), false);
+  for (const branch of ["sladegpt/loop-123456-ab12cd34", "sladegpt/fix-tests-001"]) assert.equal(validBranch(branch), true);
+  for (const branch of ["main", "feature/test", "sladegpt/../main", "sladegpt/ABC"]) assert.equal(validBranch(branch), false);
 });

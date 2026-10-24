@@ -1,4 +1,4 @@
-# Ralph Loop MCP
+# SladeGPT MCP
 
 A single-owner MCP server that uses **ChatGPT itself as the reasoning and code-generation model**. No OpenRouter account, external model API key, or paid LLM API is required.
 
@@ -6,7 +6,7 @@ A single-owner MCP server that uses **ChatGPT itself as the reasoning and code-g
 
 1. ChatGPT reads the current source with read_files.
 2. ChatGPT reasons about the requested task and generates code changes in the conversation.
-3. start_loop writes those changes to a dedicated ralph-loop/* branch and starts GitHub Actions.
+3. start_loop writes those changes to a dedicated sladegpt/* branch and starts GitHub Actions.
 4. GitHub Actions runs npm test and npm run build. It does not call an LLM.
 5. ChatGPT reads status/logs and can submit fixes with apply_changes, repeating while the client and conversation continue tool calls.
 6. Changes stay on a separate branch; the server does not merge into main automatically.
@@ -66,4 +66,4 @@ Run npm install, npm test, and npm run build.
 
 ## Safety
 
-The server writes only to a dedicated Ralph Loop branch and runs tests/build. It does not automatically push changes to main or merge them. Review the diff and validation result before merging.
+The server writes only to a dedicated SladeGPT branch and runs tests/build. It does not automatically push changes to main or merge them. Review the diff and validation result before merging.

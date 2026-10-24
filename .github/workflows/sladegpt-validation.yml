@@ -1,4 +1,4 @@
-name: Ralph Loop Validation
+name: SladeGPT Validation
 on:
   workflow_dispatch:
     inputs:
@@ -23,8 +23,8 @@ jobs:
           TARGET_BRANCH: ${{ inputs.branch }}
         run: |
           case "$TARGET_BRANCH" in
-            ralph-loop/*) ;;
-            *) echo "Refusing to validate branch outside ralph-loop/*"; exit 1 ;;
+            sladegpt/*) ;;
+            *) echo "Refusing to validate branch outside sladegpt/*"; exit 1 ;;
           esac
       - uses: actions/checkout@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           {
-            echo "Ralph Loop validation report"
+            echo "SladeGPT validation report"
             echo "Task: $TASK"
             echo "Branch: $TARGET_BRANCH"
             echo "Job outcome: $JOB_STATUS"
