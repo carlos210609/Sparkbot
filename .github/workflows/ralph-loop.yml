@@ -22,7 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
       - name: Run Ralph Loop
         env:
           RALPH_TASK: ${{ inputs.task }}
@@ -34,9 +35,14 @@ jobs:
         run: |
           npm test
           npm run build
+      - name: Export proposed patch
+        if: always()
+        run: git diff --binary > ralph.patch
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ralph-progress
-          path: .ralph/progress.md
+          name: ralph-output
+          path: |
+            .ralph/progress.md
+            ralph.patch
           if-no-files-found: warn
