@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, resolve, relative, sep, isAbsolute } from "node:path";
 
 const task = process.env.RALPH_TASK?.trim();
 const cycles = Number.parseInt(process.env.RALPH_CYCLES ?? "1", 10);
 const apiKey = process.env.OPENROUTER_API_KEY;
 const model = process.env.RALPH_MODEL || "openrouter/auto";
 const progressPath = ".ralph/progress.md";
+const repoRoot = resolve(".");
 
 if (!task || task.length < 8 || task.length > 2000) throw new Error("RALPH_TASK must be 8-2000 characters.");
 if (!Number.isInteger(cycles) || cycles < 1 || cycles > 3) throw new Error("RALPH_CYCLES must be between 1 and 3.");
@@ -19,7 +20,19 @@ const log = (message) => {
   writeFileSync(progressPath, old + `\n- ${new Date().toISOString()} — ${message}\n`);
   console.log(message);
 };
-const allowed = (path) => path === "README.md" || path.startsWith("src/") || path.startsWith("tests/");
+
+// Resolve and validate normalized paths; checking only the original prefix would allow
+// values such as "src/../package.json" to escape the intended write allowlist.
+const allowed = (filePath) => {
+  if (typeof filePath !== "string" || filePath.length === 0 || filePath.includes("\0")) return false;
+  const normalized = filePath.replaceAll("\\", "/");
+  if (normalized.startsWith("/") || normalized.split("/").some((part) => part === "." || part === "..")) return false;
+  const target = resolve(repoRoot, normalized);
+  const rel = relative(repoRoot, target).split(sep).join("/");
+  if (isAbsolute(rel) || rel === ".." || rel.startsWith("../")) return false;
+  return rel === "README.md" || rel.startsWith("src/") || rel.startsWith("tests/");
+};
+
 const readContext = () => {
   const paths = run("git", ["ls-files"]).split("\n").filter(Boolean).filter(allowed).slice(0, 35);
   let size = 0;
@@ -34,6 +47,7 @@ const readContext = () => {
   }
   return files.join("\n");
 };
+
 async function askModel(prompt) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -74,10 +88,11 @@ for (let cycle = 1; cycle <= cycles; cycle++) {
   let changed = 0;
   for (const file of result.files) {
     if (!file || typeof file.path !== "string" || typeof file.content !== "string" || !allowed(file.path)) {
-      throw new Error("Rejected invalid path/content; only src/, tests/, and README.md are allowed.");
+      throw new Error("Rejected invalid path/content; writes are limited to src/, tests/, and README.md without traversal.");
     }
-    const target = resolve(file.path);
-    if (target !== resolve("README.md") && !target.startsWith(resolve(".") + sep)) throw new Error("Path traversal rejected.");
+    const target = resolve(repoRoot, file.path.replaceAll("\\", "/"));
+    const rel = relative(repoRoot, target);
+    if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) throw new Error("Path traversal rejected.");
     if (file.content.length > 100000) throw new Error(`File too large: ${file.path}`);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, file.content);
@@ -93,4 +108,4 @@ for (let cycle = 1; cycle <= cycles; cycle++) {
     break;
   }
 }
-log("Execution finished. Review the draft pull request before merging.");
+log("Execution finished. Review the proposed patch artifact before applying changes.");
