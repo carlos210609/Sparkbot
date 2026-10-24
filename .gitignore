@@ -1,10 +1,7 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-*.db
-data/
-.sparkbot-browser/
-*.png
+node_modules/
+dist/
 .env
 .env.*
+!.env.example
+coverage/
+*.log

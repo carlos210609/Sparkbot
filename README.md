@@ -1,87 +1,37 @@
-# SparkBot
+# Ralph Loop MCP
 
-SparkBot is an agent runtime with 1,500 operational skill slots, a 700-profile specialist mesh, mission control, persistent telemetry, NVIDIA AI, public web search/fetch and an optional real Chromium browser.
+An independent MCP server and bounded Ralph Loop runner. This project is separate from SparkBuddy.
 
-## Quick start
+## Features
 
-    git clone https://github.com/carlos210609/Sparkbot.git
-    cd Sparkbot
-    export NVIDIA_API_KEY="nvapi-SUA_CHAVE"
-    python3 sparkbot.py
+- MCP tools over Streamable HTTP: start a run, inspect status, inspect job/step logs, and cancel a run.
+- GitHub Actions execution with a bounded cycle count.
+- OpenRouter integration using a server-side Actions secret.
+- Health endpoint for deployment checks.
+- Bearer-token protection for the MCP endpoint.
+- Tests and TypeScript build.
 
-Open http://127.0.0.1:8000.
+## Setup
 
-The launcher is intentionally lightweight and does not require FastAPI/Uvicorn for the command center.
+Requirements: Node.js 20+, a GitHub repository with Actions enabled, a GitHub token with Actions read/write permission for the configured repository, and an OpenRouter API key.
 
-## NVIDIA
+1. Add repository secret `OPENROUTER_API_KEY`.
+2. In repository Settings → Secrets and variables → Actions, add the required secrets for your deployment.
+3. Run `npm install`, copy `.env.example` to `.env`, and set `MCP_BEARER_TOKEN` and `GITHUB_TOKEN`.
+4. Run `npm run dev`. The MCP endpoint is `/mcp`; the health endpoint is `/health`.
 
-SparkBot uses NVIDIA hosted chat completions by default at https://integrate.api.nvidia.com/v1/chat/completions. The default model is openai/gpt-oss-20b. NVIDIA documents this model as supporting agentic tool use.
+## MCP tools
 
-Override the model with SPARKBOT_NVIDIA_MODEL if needed. Never commit NVIDIA_API_KEY.
+- `start_loop(task, cycles?)`: dispatch a workflow run.
+- `get_status(run_id?)`: list recent runs or inspect one run.
+- `get_logs(run_id)`: show job and step outcomes and the GitHub run URL.
+- `stop_loop(run_id)`: request cancellation.
 
-## Real browser agent
+## Safety and current limitations
 
-The browser runtime is optional because Chromium is a separate dependency.
-
-    python3 -m pip install -e ".[browser]"
-        python3 sparkbot.py
-
-The Browser Monitor shows whether Playwright/Chromium is available. The browser supports public navigation, clicks, form filling, visible-text inspection and screenshots. Actions are audited. It does not bypass CAPTCHA, authentication, platform limits or security controls.
-
-Browser profile data is stored under .sparkbot-browser by default. Keep that directory private.
-
-## Agent capabilities
-
-- web_search — public web search
-- web_fetch — public web retrieval
-- browser_navigate / browser_click / browser_fill / browser_text / browser_screenshot
-- persistent SQLite missions, memory and audit events
-- 700 specialist agent profiles
-- 1,500 skill slots
-- permission and verification engine
-
-The model is instructed to reason as an agent, but the runtime remains authoritative: SparkBot must not claim an action occurred without tool evidence.
-
-## Development
-
-    python3 -m pip install -e ".[dev]"
-    python3 -m compileall -q sparkbot.py sparkbot
-    python3 -m pytest -q
-    ruff check .
-
-If GitHub Actions is enabled for the repository, the same checks run on push and pull request.
-
-
-## Social operations and real browser
-
-SparkBot can now use the persistent Chromium profile to work with legitimate, user-authorized accounts on Instagram, TikTok, YouTube, LinkedIn, Facebook, X, Threads, Pinterest, Reddit, Canva and supported AI-video sites. The runtime can open signup/login pages, inspect interactive elements, prepare drafts, upload media and stage publications.
-
-Account onboarding is intentionally human-safe: passwords, OTP/MFA, recovery codes, CAPTCHA and other security challenges are never automated or stored by SparkBot. The user completes those steps in the persistent browser profile. This matches the platforms' own account flows; for example, Canva sends an email verification code during signup, YouTube requires a Google account/channel for public uploads, and LinkedIn requires the user's real identity. 
-
-Public publishing, messages and other externally visible side effects go through the Approval Center. The browser also detects sensitive fields and publish-like controls and refuses to silently execute them.
-
-### Supported operations
-
-- official signup/login page navigation
-- profile setup assistance
-- content research and copy generation
-- draft preparation
-- image/video upload
-- publish staging and human approval
-- comments/replies/messages when the platform UI permits it
-- analytics inspection
-- Canva and AI-video site onboarding/workflows
-- persistent browser session
-- operational learning from verified outcomes
-
-SparkBot's learning layer is outcome-based: it records successful/verified browser and social operations in persistent memory and uses those observations to improve future strategy selection. It does not retrain NVIDIA model weights automatically.
-
-Install the Python browser automation runtime (no browser download is required if Chrome/Chromium/Edge is already installed):
-
-    python3 -m pip install -e ".[browser]"
-    python3 -m playwright install chromium
-    python3 sparkbot.py
-
-
-### Browser without downloading a browser
-SparkBot automatically detects an existing Google Chrome, Chromium or Microsoft Edge installation and drives it through Playwright. Set `SPARKBOT_BROWSER_EXECUTABLE` if the browser is installed in a custom path. Playwright is still required as the Python automation library, but SparkBot does not download a second browser when a compatible system browser is available.
+- The repository is fixed by environment configuration; callers cannot select arbitrary repositories.
+- The MCP endpoint requires a bearer token.
+- Cycles are limited to 1–3 per run.
+- AI-generated changes must be reviewed before merging.
+- GitHub Actions has quotas and bounded job duration. OpenRouter free model availability and quotas vary; zero cost is not guaranteed.
+- This initial workflow runs the agent and uploads its progress artifact. It does not yet automatically push changes or create pull requests; those write permissions will be added only after the basic run is verified.

@@ -1,0 +1,42 @@
+name: Ralph Loop
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Engineering task
+        required: true
+        type: string
+      cycles:
+        description: Maximum cycles
+        required: true
+        default: "1"
+        type: string
+permissions:
+  contents: read
+jobs:
+  ralph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - name: Run Ralph Loop
+        env:
+          RALPH_TASK: ${{ inputs.task }}
+          RALPH_CYCLES: ${{ inputs.cycles }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RALPH_MODEL: ${{ vars.RALPH_MODEL }}
+        run: node scripts/ralph.mjs
+      - name: Verify
+        run: |
+          npm test
+          npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ralph-progress
+          path: .ralph/progress.md
+          if-no-files-found: warn
