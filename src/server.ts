@@ -157,16 +157,20 @@ function authenticateAccessToken(req: Request, res: Response): Record<string, an
 
 async function github(path: string, init: RequestInit = {}) {
   const token = process.env.GITHUB_TOKEN;
-  if (!token) throw new Error("GITHUB_TOKEN is not configured. Set a fine-grained GitHub token for this repository with Contents read/write and Actions read/write permissions in Vercel.");
+  const method = (init.method ?? "GET").toUpperCase();
+  if (!token && method !== "GET") {
+    throw new Error("GITHUB_TOKEN is required for repository writes and GitHub Actions dispatch. Set a fine-grained token in Vercel with Contents read/write and Actions read/write permissions. Public repository reads can work without it.");
+  }
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> | undefined)
+  };
+  if (token) headers.Authorization = "Bearer " + token;
   const response = await fetch("https://api.github.com/repos/" + owner + "/" + repo + path, {
     ...init,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: "Bearer " + token,
-      "X-GitHub-Api-Version": "2022-11-28",
-      "Content-Type": "application/json",
-      ...init.headers
-    }
+    headers
   });
   const body = await response.text();
   if (!response.ok) throw new Error("GitHub API " + response.status + ": " + body.slice(0, 800));
